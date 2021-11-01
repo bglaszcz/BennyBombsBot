@@ -1,0 +1,26 @@
+const fetch = require('node-fetch');
+const fs = require('fs');
+
+module.exports = {
+    name: 'bootjaf',
+    description: 'Count the times we !bootjaf',
+    async execute(message, args) {
+
+        var num = fs.readFileSync(`./bootjaf/bootjaf.txt`, {"encoding":"utf-8"});
+            num++;
+        var writing = fs.writeFileSync(`./bootjaf/bootjaf.txt`, `${num}`);
+        message.channel.send(num);
+        // var num = 0
+        let keywords = "milk";
+        if (args.length > 0) {
+            keywords = args.join(" ");
+        }
+        let url = `https://g.tenor.com/v1/search?q=milk&key=VB2LPT9PUU0Z`
+        let response = await fetch(url);
+        let json = await response.json();
+
+        const index = Math.floor(Math.random() * json.results.length);
+
+        message.channel.send(json.results[index].url);
+    },
+}
