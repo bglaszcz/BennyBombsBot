@@ -17,7 +17,7 @@ module.exports = {
 		let cryptoCurrency = args[0];
         
         const ticker = await client.getQuotes({symbol: cryptoCurrency});     
-
+        
         if (!ticker.data) {
             message.reply(ticker.status.error_message).then(m => {
                 setTimeout(() => {
@@ -26,16 +26,18 @@ module.exports = {
             })
         } else {
             for (const prop in ticker.data) {
+                //console.log(ticker.data[prop].quote);
                 var name = ticker.data[prop].name;
                 var symbol = ticker.data[prop].symbol
                 var price = ticker.data[prop].quote.USD.price;
                 var change24 = ticker.data[prop].quote.USD.percent_change_24h.toFixed(2);
+                var volumechange24 = ticker.data[prop].quote.USD.volume_change_24h.toFixed(2);
 
                     if (price < 1) {
-                        message.channel.send(`${name} (${symbol}): $${price.toFixed(9)} (${change24}%)`);
+                        message.channel.send(`${name} (${symbol}): $${price.toFixed(9)} (${change24}%) (Vol 24H:${volumechange24}%)`);
                     }
                     else {
-                        message.channel.send(`${name} (${symbol}): ${formatter.format(price)} (${change24}%)`);
+                        message.channel.send(`${name} (${symbol}): ${formatter.format(price)} (${change24}%) (Vol 24H:${volumechange24}%)`);
                     }
             }
         }

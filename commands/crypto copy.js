@@ -2,7 +2,7 @@ const fetch = require('node-fetch');
 const request = require('request')
 
 module.exports = {
-	name: `crypto`,
+	name: `crypto222`,
 	description: 'Show crypto price.',
 	async execute(message, args) {
 		message.delete();
