@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
-const { TENORKEY } = require('/home/ben/Desktop/BennyBombsBot/config.json');
+const  TENORKEY = process.env.prefix;
+
 
 module.exports = {
 name: 'gif',
@@ -12,7 +13,7 @@ async execute (message, args) {
 
     let testing = encodeURI(keywords);
 
-    let url = `https://g.tenor.com/v1/search?q=${testing}&key=VB2LPT9PUU0Z&limit=7`;
+    let url = `https://g.tenor.com/v1/search?q=${testing}&key=${TENORKEY}&limit=7`;
 
     let response = await fetch(url);
 
