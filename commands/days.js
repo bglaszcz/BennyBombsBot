@@ -1,7 +1,7 @@
 let options = {weekday: `long`, year:`numeric`, month:`long`, day:`numeric`};
 
 module.exports = {
-    name: 'daysUntil',
+    name: 'days',
     description: 'Days between now and a future date.',
     execute(message, args) {
 
