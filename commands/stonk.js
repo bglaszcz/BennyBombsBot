@@ -24,32 +24,24 @@ module.exports = {
             var volume = $(`[data-test='TD_VOLUME-value']`).first().text().toString();
             var volume_avg = $(`[data-test='AVERAGE_VOLUME_3MONTH-value']`).first().text().toString();
 
-            // if (date_ob < 16) {
-            //     var cur_price = $(`#quote-market-notice`).parent().children('span').first().text();
-            //     var change = $(`#quote-market-notice`).parent().children('span').eq(1).first().text();
-            // } else {
-            //     var cur_price = $(`span[data-reactid='52']`).first().text().toString();
-            //     var change = $(`span[data-reactid='55']`).first().text().toString();
-            // }
-
             if (date_ob <= 8 && minutes < 30) {
                 var priceHeader = "Price (Pre-Market)"
                 var changeHeader = "Change (Pre-Market)"
-                var embedColor = "#fa7b62"
-                var cur_price = $(`span[data-reactid='52']`).first().text().toString();
-                var change = $(`span[data-reactid='55']`).first().text().toString();
+                var embedColor = "#FFAE42"
+                var cur_price = $(`fin-streamer[data-field='preMarketPrice']`).text();
+                var change = $(`fin-streamer[data-field='preMarketChange']`).text();
             } else if (date_ob > 14 ) {
                 var priceHeader = "Price (After Hours)"
                 var changeHeader = "Change (After Hours)"
-                var embedColor = "#ECC1B2"
-                var cur_price = $(`span[data-reactid='52']`).first().text().toString();
-                var change = $(`span[data-reactid='55']`).first().text().toString();
+                var embedColor = "#FF5349"
+                var cur_price = $(`fin-streamer[class="C($primaryColor) Fz(24px) Fw(b)"]`).text();
+                var change = $(`fin-streamer[class="Mstart(4px) D(ib) Fz(24px)"]`).text();
             } else {
                 var priceHeader = "Price"
                 var changeHeader = "Change"
-                var embedColor = '#0099ff'
-                var cur_price = $(`#quote-market-notice`).parent().children('span').first().text();
-                var change = $(`#quote-market-notice`).parent().children('span').eq(1).first().text();
+                var embedColor = '#0000FF'
+                var cur_price = $('fin-streamer[class="Fw(b) Fz(36px) Mb(-4px) D(ib)"]').attr("value");
+                var change = $(`fin-streamer[class="Fw(500) Pstart(8px) Fz(24px)"]`).text();
             }
 
             if (company) {
@@ -63,13 +55,12 @@ module.exports = {
                     {name: '\u200B', value: '\u200B', inline: true},
                     {name: '24 Hour Volume', value: volume, inline: true},
                     {name: 'Average Volume', value: volume_avg, inline: true},
-                );    
+                ); 
                 message.channel.send(exampleEmbed);
             }
             else {
             message.channel.send(`No stonk with the ticker ${args}.`)
             }
-            
         })
 
         },

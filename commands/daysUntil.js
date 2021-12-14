@@ -1,15 +1,19 @@
 let options = {weekday: `long`, year:`numeric`, month:`long`, day:`numeric`};
 
 module.exports = {
-    name: 'test',
-    description: 'test!',
+    name: 'daysUntil',
+    description: 'Days between now and a future date.',
     execute(message, args) {
 
         try{
             var endDate = new Date(args);
         }
         catch (error) {
-            console.error(error);
+            message.reply(error).then(m => {
+                setTimeout(() => {
+                    m.delete()
+                }, 5000)
+            })
         }
 
         const diffTime = Math.abs(Date.now() - endDate);

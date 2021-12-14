@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@xhissy/google-stock-scraper": "^1.0.6",
     "axios": "^0.21.1",
     "cheerio": "*",
     "coinmarketcap-api": "^3.1.1",
