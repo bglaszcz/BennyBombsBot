@@ -1,22 +1,21 @@
-let options = {weekday: `long`, year:`numeric`, month:`long`, day:`numeric`};
+const fetch = require('node-fetch');
+const fs = require('fs');
 
 module.exports = {
     name: 'test',
-    description: 'test!',
-    execute(message, args) {
-
-        try{
-            var endDate = new Date(args);
+    description: 'test',
+    async execute(message, args) {
+        // var num = 0
+        let keywords = "milk";
+        if (args.length > 0) {
+            keywords = args.join(" ");
         }
-        catch (error) {
-            console.error(error);
-        }
+        let url = `https://g.tenor.com/v1/search?q=milk&key=VB2LPT9PUU0Z&limit=50`
+        let response = await fetch(url);
+        let json = await response.json();
+        console.log(json.results.length);
+        const index = Math.floor(Math.random() * json.results.length);
 
-        const diffTime = Math.abs(Date.now() - endDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
-        // let today = new Date().toLocaleString('en-us', {weekday: 'long'});
-        const dateFormat = new Date(endDate).toLocaleString('en-us', options);
-
-        message.channel.send(`${diffDays} days until ${dateFormat}`);
+        message.channel.send(json.results[index].url);
     },
 }

@@ -1,1 +1,1 @@
-Tuesday
+Wednesday
