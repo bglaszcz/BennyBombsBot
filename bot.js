@@ -5,6 +5,8 @@ require('dotenv').config();
 const  token = process.env.token;
 const  prefix = process.env.prefix;
 
+//let options = {weekday: `long`, year:`numeric`, month:`long`, day:`numeric`};
+
 const client = new Discord.Client();
 client.commands = new Discord.Collection();
 
@@ -20,6 +22,21 @@ client.once('ready', () => {
 });
 
 client.on('message', message => {
+
+	//if (message.content.toLowerCase().includes("deth toots") && (message.author.id == "266356395094441986" || message.author.id == "204351379861536770")) {
+	if (message.content.toLowerCase().includes("deth toots") && message.author.id == "266356395094441986") {
+
+		var tootDate = fs.readFileSync(`./bootjaf/deth.txt`, {"encoding":"utf-8"});
+		
+		const diffTime = Math.abs(Date.now() - tootDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 3600));
+		
+		var myDate = new Date(Number(tootDate));
+        
+        message.channel.send(`Dal last had deth toots on ${myDate.toLocaleString()}. ${diffDays} hours since Dals last deth toots`);
+    	var writing = fs.writeFileSync(`./bootjaf/deth.txt`, `${Date.now()}`);
+		return;
+	}
 
 	if (!message.content.startsWith(prefix) || message.author.bot) return;
 
