@@ -16,6 +16,7 @@
     "discord.js": "^12.5.3",
     "dotenv": "^8.2.0",
     "node-fetch": "^2.6.1",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "yahoo-finance2": "^2.3.4"
   }
 }
