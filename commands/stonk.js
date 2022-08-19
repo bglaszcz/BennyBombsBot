@@ -13,7 +13,7 @@ module.exports = {
         
         const result = await yahooFinance.quoteSummary(`${args}`);
         const company = result.price.shortName;
-        const cur_price = result.price.regularMarketPrice;
+        const cur_price = result.price.regularMarketPrice.toLocaleString('en-US', {style: 'currency', currency: 'USD'});
         const change = (result.price.regularMarketChangePercent * 100).toFixed(2)+"%";
         const volume = result.price.regularMarketVolume.toLocaleString("en-US");
         const volume_avg = result.summaryDetail.averageVolume.toLocaleString("en-US");
