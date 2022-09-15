@@ -1,25 +1,21 @@
+const { SlashCommandBuilder } = require('discord.js');
+
 module.exports = {
-	name: 'prune',
-	description: 'Prune up to 99 messages.',
-	execute(message, args) {
+	data: new SlashCommandBuilder()
+		.setName('prune')
+		.setDescription('Prune up to 99 messages.')
+		.addIntegerOption(option => option.setName('amount').setDescription('Number of messages to prune')),
+	async execute(interaction) {
+		const amount = interaction.options.getInteger('amount');
 
-		if (message.author.id == "204351379861536770" || message.author.id == "281228329196191755") {
-			const amount = parseInt(args[0]) + 1;
+		if (amount < 1 || amount > 99) {
+			return interaction.reply({ content: 'You need to input a number between 1 and 99.', ephemeral: true });
+		}
+		await interaction.channel.bulkDelete(amount, true).catch(error => {
+			console.error(error);
+			interaction.reply({ content: 'There was an error trying to prune messages in this channel!', ephemeral: true });
+		});
 
-			if (isNaN(amount)) {
-				return message.reply('that doesn\'t seem to be a valid number.');
-			} else if (amount <= 1 || amount > 100) {
-				return message.reply('you need to input a number between 1 and 99.');
-			}
-
-			message.channel.bulkDelete(amount, true).catch(err => {
-				console.error(err);
-				message.channel.send('there was an error trying to prune messages in this channel!');
-
-			})
-
-		} else {
-			return message.reply("You can't use this command")
-		};
+		return interaction.reply({ content: `Successfully pruned \`${amount}\` messages.`, ephemeral: true });
 	},
 };

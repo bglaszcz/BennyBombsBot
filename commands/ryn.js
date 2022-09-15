@@ -1,10 +1,11 @@
+const { SlashCommandBuilder } = require('discord.js');
+
 module.exports = {
-    name: `ryn`,
-    description: 'Ryn being a little bitch',
-    execute(message, args) {
-            // message.channel.send(`Fuq yeah they do. CLAP CLAP CLAP`);
-            message.delete();
-            let url = `https://c.tenor.com/A-NINAUpA2gAAAAC/the-office-michael-scott.gif`
-            message.channel.send(url)
+	data: new SlashCommandBuilder()
+        .setName(`ryn`)
+        .setDescription(`Ryn gif`),
+    execute(interaction) {
+            const url = `https://c.tenor.com/A-NINAUpA2gAAAAC/the-office-michael-scott.gif`;
+            interaction.reply(url);
         },
-}
+};

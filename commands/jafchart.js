@@ -1,16 +1,18 @@
-const fs = require('fs');
+const { SlashCommandBuilder } = require('discord.js');
 
 module.exports = {
-    name: `jafchart`,
-    description: 'Show Jaf Fun Flowchart',
-    execute(message, args) {
+	data: new SlashCommandBuilder()
+        .setName(`jafchart`)
+        .setDescription(`Show jaf fun chart`),
+    execute(interaction) {
 
-        var images = `./images/jafchart/image1.png`
+        const images = `./images/jafchart/image1.png`;
 
         try {
-            message.channel.send({files: [images]});
-        } catch(err) {
-            message.channel.send("YOU BROKE IT!!!");
+            interaction.reply({ files: [images] });
+        }
+        catch (err) {
+            interaction.reply("YOU BROKE IT!!!");
         }
     },
-}
+};

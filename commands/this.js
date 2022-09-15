@@ -1,10 +1,13 @@
+const { SlashCommandBuilder } = require('discord.js');
+
 module.exports = {
-    name: `this`,
-    description: `^^^^^^^^^^^^^`,
-    execute(message, args) {
-            
-            // message.delete();
-            let url = `https://media.giphy.com/media/oxLpLI0eNf3Wg/giphy.gif`
-            message.channel.send(url)
+	data: new SlashCommandBuilder()
+        .setName(`this`)
+        .setDescription(`^^^^^^^^^^`),
+    execute(interaction) {
+
+
+            const url = `https://media.giphy.com/media/oxLpLI0eNf3Wg/giphy.gif`;
+            interaction.reply(url);
         },
-}
+};

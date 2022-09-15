@@ -9,14 +9,19 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@discordjs/rest": "^1.1.0",
     "@xhissy/google-stock-scraper": "^1.0.6",
     "axios": "^0.21.1",
     "cheerio": "*",
     "coinmarketcap-api": "^3.1.1",
-    "discord.js": "^12.5.3",
-    "dotenv": "^8.2.0",
+    "dayjs": "^1.11.5",
+    "discord.js": "^14.3.0",
+    "dotenv": "^8.6.0",
     "node-fetch": "^2.6.1",
     "request": "^2.88.2",
     "yahoo-finance2": "^2.3.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.23.1"
   }
 }

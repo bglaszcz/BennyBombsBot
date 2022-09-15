@@ -1,16 +1,18 @@
-const fs = require('fs');
+const { SlashCommandBuilder } = require('discord.js');
 
 module.exports = {
-    name: `weapprove`,
-    description: 'Your supes approve',
-    execute(message, args) {
-        message.delete();
-        var images = `./images/weapprove/image0.jpeg`
+	data: new SlashCommandBuilder()
+        .setName(`weapprove`)
+        .setDescription(`Your supes approve`),
+    execute(interaction) {
+
+        const images = `./images/weapprove/image0.jpeg`;
 
         try {
-            message.channel.send({files: [images]});
-        } catch(err) {
-            message.channel.send("YOU BROKE IT!!!");
+            interaction.reply({ files: [images] });
+        }
+        catch (err) {
+            interaction.reply("YOU BROKE IT!!!");
         }
     },
-}
+};

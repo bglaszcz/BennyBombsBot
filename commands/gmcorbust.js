@@ -1,10 +1,12 @@
+const { SlashCommandBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'gmcorbust',
-    description: `We finna bust`,
-    execute(message, args) {
-        
-        message.channel.send(`https://www.youtube.com/watch?reload=9&v=0tdyU_gW6WE`);
-        
+    data: new SlashCommandBuilder()
+        .setName(`gmcorbust`)
+        .setDescription(`We finna bust`),
+    execute(interaction) {
+
+        interaction.reply(`https://www.youtube.com/watch?reload=9&v=0tdyU_gW6WE`);
+
     },
-}
+};

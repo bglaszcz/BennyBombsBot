@@ -1,10 +1,13 @@
+const { SlashCommandBuilder } = require('discord.js');
+
 module.exports = {
-    name: `dokimscheeksclap`,
-    description: 'Do Kims Cheeks Clap?',
-    execute(message, args) {
-            message.channel.send(`Fuq yeah they do. CLAP CLAP CLAP`);
-            
-            let url = `https://media.giphy.com/media/rhq4biotLkkRG/giphy.gif`
-            message.channel.send(url)
+	data: new SlashCommandBuilder()
+        .setName('kim')
+        .setDescription('You what it is'),
+    execute(interaction) {
+            interaction.reply(`Dem cheeks CLAP CLAP CLAP`);
+
+            const url = `https://media.giphy.com/media/rhq4biotLkkRG/giphy.gif`;
+            interaction.channel.send(url);
         },
-}
+};

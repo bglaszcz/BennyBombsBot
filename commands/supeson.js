@@ -1,23 +1,25 @@
-
 const fs = require('fs');
 const imageFiles = fs.readdirSync('./images/supeson');
+const { SlashCommandBuilder } = require('discord.js');
 
 module.exports = {
-    name: `supeson`,
-    description: 'GOOD MORNING CREW',
-    execute(message, args) {
-        message.delete();
-        var images = new Array();
-        var i = 0;
+	data: new SlashCommandBuilder()
+        .setName(`supeson`)
+        .setDescription(`Pick random son gif`),
+    execute(interaction) {
+
+        const images = new Array();
+        let i = 0;
         for (const file of imageFiles) {
             images[i] = `./images/supeson/${file}`;
             i++;
         }
-        var number = Math.floor(Math.random()*images.length);
+        const number = Math.floor(Math.random() * images.length);
         try {
-            message.channel.send({files: [images[number]]});
-        } catch(err) {
-            message.channel.send("YOU BROKE IT!!!");
+            interaction.reply({ files: [images[number]] });
+        }
+        catch (err) {
+            interaction.reply("YOU BROKE IT!!!");
         }
     },
-}
+};
