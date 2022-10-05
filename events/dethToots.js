@@ -4,7 +4,7 @@ const dayjs = require('dayjs');
 module.exports = {
 	name: 'messageCreate',
 	execute(message) {
-        if (message.content.toLowerCase().includes('deth toots')
+        if (message.content.toLowerCase().includes('deth toot')
                                     // Bot ID
             && message.author.id != '806354375151845406'
                                     // Dals ID
@@ -22,16 +22,16 @@ module.exports = {
         const hours = (between / (1000 * 60 * 60)).toFixed(1);
         const days = (between / (1000 * 60 * 60 * 24)).toFixed(1);
         if (seconds < 60) {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${seconds} seconds since ${message.author} last deth toots`);
+            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${seconds} seconds since ${message.author} last had deth toots`);
         }
         else if (minutes < 60) {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${minutes} minutes since ${message.author} last deth toots`);
+            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${minutes} minutes since ${message.author} last had deth toots`);
         }
         else if (hours < 24) {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${hours} hours since ${message.author} last deth toots`);
+            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${hours} hours since ${message.author} last had deth toots`);
         }
         else {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${days} days since ${message.author} last deth toots`);
+            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${days} days since ${message.author} last had deth toots`);
         }
 
 		fs.writeFileSync(`./bootjaf/deth.txt`, `${Date.now()}`);

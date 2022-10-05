@@ -4,8 +4,11 @@ module.exports = {
 	data: new SlashCommandBuilder()
         .setName(`vaccination`)
         .setDescription(`Vaccination? What is it good for?`),
-    execute(interaction) {
-        interaction.reply('= Depopulation!').then(function(sentMessage) {sentMessage.react(`<:this_tbh:870658997605253120>`);},
-        );
+    async execute(interaction) {
+
+        interaction.reply('= Depopulation!');
+        const message = await interaction.fetchReply();
+        message.react(`<:this_tbh:870658997605253120>`);
+
     },
 };

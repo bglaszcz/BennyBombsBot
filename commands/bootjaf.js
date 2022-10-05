@@ -1,6 +1,9 @@
 const fetch = require('node-fetch');
-const fs = require('fs');
 const { SlashCommandBuilder } = require('discord.js');
+const Sequelize = require('sequelize');
+const sequelize = require('../db.js');
+
+const BootJaf = require('../models/BootJaf')(sequelize, Sequelize.DataTypes);
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -8,10 +11,23 @@ module.exports = {
 		.setDescription('Count the times we boot jaf'),
     async execute(interaction) {
 
-        let num = fs.readFileSync(`./bootjaf/bootjaf.txt`, { "encoding":"utf-8" });
-            num++;
-        fs.writeFileSync(`./bootjaf/bootjaf.txt`, `${num}`);
-        interaction.reply(num.toString());
+        const bootJafCount = await BootJaf.findOne({
+            order: [ [ 'createdAt', 'DESC' ] ],
+        });
+
+        const bootJafCountDisplay = bootJafCount.usage_count + 1;
+
+        interaction.reply(`${bootJafCountDisplay}`);
+
+        try {
+            await BootJaf.create({
+                username: interaction.user.username,
+                usage_count: bootJafCountDisplay,
+            });
+        }
+        catch (error) {
+            console.log(error);
+        }
 
         const url = `https://g.tenor.com/v1/search?q=milk&key=VB2LPT9PUU0Z&limit=50`;
         const response = await fetch(url);

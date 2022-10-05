@@ -5,9 +5,9 @@ const sequelize = require('../db.js');
 const DoesRynBill = require('../models/DoesRynBill')(sequelize, Sequelize.DataTypes);
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName(`doesrynbill`)
-        .setDescription(`doesrynbill!`),
+	data: new SlashCommandBuilder()
+		.setName('test')
+		.setDescription('setting up doesrynbill'),
     async execute(interaction) {
 
         const billHours = Math.round((Math.random() * 10) * 10) / 10;
@@ -25,44 +25,29 @@ module.exports = {
         let billed;
         let newBillNum;
         let currBillNum;
-        let newHours;
-        let newAttempts;
-        let attempter;
 
-        if (bills.billedYN === 1) {
+        if (bills.dataValues.billedYN === 1) {
             billed = 1;
-            newBillNum = bills.bill_number + 1;
+            newBillNum = bills.dataValues.bill_number + 1;
         }
         else {
             billed = 0;
-            currBillNum = bills.bill_number;
+            currBillNum = bills.dataValues.bill_number;
         }
 
-        try {
-            attempter = await DoesRynBill.findOne({
-                attributes: [
-                'id', 'username', 'attempts', 'hours', 'bill_number', 'billed',
-                ],
-                where: {
-                        [Op.and]: [{ username: interaction.user.username }, { billed: false } ] },
-            });
-        }
-        catch (error) {
-            console.log(error);
-        }
+        const attempter = await DoesRynBill.findOne({
+            attributes: [
+            'id', 'username', 'attempts', 'hours', 'bill_number', 'billed',
+            ],
+            where: {
+                    [Op.and]: [{ username: interaction.user.username }, { billed: false } ] },
+        });
 
-
-        if (attempter === null) {
-            newHours = billHours;
-            newAttempts = 1;
-        }
-        else {
-            newHours = Number(attempter.hours) + billHours;
-            newAttempts = Number(attempter.attempts) + 1;
-        }
+        const newHours = Number(attempter.dataValues.hours) || 0 + billHours;
+        const newAttempts = Number(attempter.dataValues.attempts) || 0 + 1;
 
         if (billed === 0) {
-            if (attempter != null) {
+            if (attempter.length != 0) {
                 if (rando === 69) {
                     try {
                         await DoesRynBill.upsert({
@@ -84,14 +69,14 @@ module.exports = {
                             attempts: newAttempts,
                             hours: newHours,
                         }),
-                        interaction.reply(`ryn submitted a bill for ${billHours} hours and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him. (${rando})`);
+                        interaction.reply(`ryn submitted a bill for ${billHours} and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him.`);
                     }
                     catch (error) {
                         console.log(error);
                     }
                 }
             }
-            else if (attempter === null) {
+            else if (attempter.length === 0) {
                 if (rando === 69) {
                     try {
                         await DoesRynBill.create({
@@ -101,22 +86,7 @@ module.exports = {
                             bill_number: currBillNum,
                             billed: true,
                         }),
-                    interaction.reply(`ryn did a bill! ${interaction.user.username} submitted ${newAttempts} bills for ${newHours} on his behalf.`);
-                    }
-                    catch (error) {
-                        console.log(error);
-                    }
-                }
-                else {
-                    try {
-                        await DoesRynBill.create({
-                            username: interaction.user.username,
-                            attempts: newAttempts,
-                            hours: newHours,
-                            bill_number: currBillNum,
-                            billed: false,
-                        }),
-                        interaction.reply(`ryn submitted a bill for ${billHours} hours and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him. (${rando})`);
+                    interaction.reply(`ryn did a bill! ${interaction.user.username} submitted ${newAttempts} bills for ${newHours} on his behalf.`);                
                     }
                     catch (error) {
                         console.log(error);
@@ -149,7 +119,7 @@ module.exports = {
                         bill_number: newBillNum,
                         billed: false,
                     }),
-                    interaction.reply(`ryn submitted a bill for ${billHours} hours and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him. (${rando})`);
+                    interaction.reply(`ryn submitted a bill for ${billHours} and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him.`);
                 }
                 catch (error) {
                     console.log(error);
