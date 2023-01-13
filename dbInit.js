@@ -2,23 +2,20 @@
 const Sequelize = require('sequelize');
 const sequelize = require('./db.js');
 
-// const BootJaf = require('./models/BootJaf.js')(sequelize, Sequelize.DataTypes);
-const DoesRynBill = require('./models/DoesRynBill.js')(sequelize, Sequelize.DataTypes);
+const BootJaf = require('./models/BootJaf.js')(sequelize, Sequelize.DataTypes);
+// const DoesRynBill = require('./models/DoesRynBill.js')(sequelize, Sequelize.DataTypes);
 
 const force = process.argv.includes('--force') || process.argv.includes('-f');
 
-DoesRynBill.sync();
+BootJaf.sync();
 
 sequelize.sync({ force }).then(async () => {
-	const doesrynbill = [
-		DoesRynBill.upsert({ username: 'BennyBombs',
-							attempts: 0,
-							hours: 0,
-							bill_number: 1,
-							billed: false }),
+	const bootjaf = [
+		BootJaf.upsert({ username: 'BennyBombs',
+							usage_count: 432 }),
 	];
 
-	await Promise.all(doesrynbill);
+	await Promise.all(bootjaf);
 	console.log('Database synced');
 
 	sequelize.close();
