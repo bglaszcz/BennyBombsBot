@@ -3,7 +3,7 @@ module.exports = (sequelize, DataTypes) => {
         username: DataTypes.STRING,
         usage_count: {
             type: DataTypes.INTEGER,
-            defaultValue: 354,
+            defaultValue: 432,
             allowNull: false,
         },
 	});
