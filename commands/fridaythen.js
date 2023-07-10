@@ -1,6 +1,4 @@
-// const fs = require('fs');
-// const imageFiles = fs.readdirSync('./images/FridayThen');
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, InteractionCollector } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -31,6 +29,8 @@ module.exports = {
         else if (today == "Thursday") {
             interaction.reply(`Dafuq? It's *${today}*, not Friday fam`);
             interaction.channel.send({ files: [images[3]] });
+            // interaction.reply(`No, it's not Friday... it's an even better day. THE START OF ICE FISHING WEEKEND!`);
+            // interaction.channel.send(`https://www.youtube.com/watch?v=D0sjCgS7vi8`);
         }
         else if (today == "Friday") {
             interaction.reply(`https://www.youtube.com/watch?v=1AnG04qnLqI%27`);
