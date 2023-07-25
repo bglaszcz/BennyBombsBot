@@ -7,9 +7,16 @@ const DoesRynBill = require('../models/DoesRynBill')(sequelize, Sequelize.DataTy
 module.exports = {
     data: new SlashCommandBuilder()
         .setName(`doesrynbill`)
-        .setDescription(`doesrynbill!`),
+        .setDescription(`doesrynbill!`)
+        .addIntegerOption(option => option
+            .setName('guess')
+            .setDescription('What number are you guessing 1-100?')
+            .setMaxValue(100)
+            .setMinValue(1)
+            .setRequired(true)),
     async execute(interaction) {
 
+        const guess = interaction.options.getInteger('guess');
         const billHours = Math.round((Math.random() * 10) * 10) / 10;
         const rando = Math.floor(Math.random() * 100) + 1;
 
@@ -63,7 +70,7 @@ module.exports = {
 
         if (billed === 0) {
             if (attempter != null) {
-                if (rando === 69) {
+                if (guess === rando) {
                     try {
                         await DoesRynBill.upsert({
                             id: attempter.dataValues.id,
@@ -92,7 +99,7 @@ module.exports = {
                 }
             }
             else if (attempter === null) {
-                if (rando === 69) {
+                if (guess === rando) {
                     try {
                         await DoesRynBill.create({
                             username: interaction.user.username,
@@ -125,7 +132,7 @@ module.exports = {
             }
         }
         else if (billed === 1) {
-            if (rando === 69) {
+            if (guess === rando) {
                 try {
                     await DoesRynBill.create({
                         username: interaction.user.username,
