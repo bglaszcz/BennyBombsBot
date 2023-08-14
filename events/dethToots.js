@@ -1,41 +1,59 @@
-const fs = require('fs');
+const { Sequelize, DataTypes } = require('sequelize');
 const dayjs = require('dayjs');
+const { Events } = require('discord.js');
+
+const sequelize = require('../db.js');
+const DethToot = require('../models/DethToot.js')(sequelize, Sequelize.DataTypes);
 
 module.exports = {
-	name: 'messageCreate',
-	execute(message) {
-        if (message.content.toLowerCase().includes('deth toot')
-                                    // Bot ID
-            && message.author.id != '806354375151845406'
-                                    // Dals ID
-            && message.author.id == '266356395094441986'
-        ) {
+  name: Events.MessageCreate,
+  async execute(message) {
+    const notAllowedUserIds = ['806354375151845406'];
 
-		const tootDate = fs.readFileSync('./bootjaf/deth.txt', { 'encoding':'utf-8' });
+    if (
+      message.content.toLowerCase().includes('deth toot') &&
+      !notAllowedUserIds.includes(message.author.id)
+    ) {
+      try {
+        const dethTootEntry = await DethToot.findOne({
+          where: { username: message.author.username },
+          order: [['lastTootDate', 'DESC']],
+        });
+
         const now = dayjs();
+        const lastTootDate = dethTootEntry ? dayjs(dethTootEntry.lastTootDate) : dayjs(0);
 
-        const between = now - tootDate;
-        const myDate = new Date(Number(tootDate));
+        const durationInMilliseconds = now.diff(lastTootDate);
+        const days = durationInMilliseconds / (1000 * 60 * 60 * 24); // Convert milliseconds to days
 
-        const seconds = (between / 1000).toFixed(1);
-        const minutes = (between / (1000 * 60)).toFixed(1);
-        const hours = (between / (1000 * 60 * 60)).toFixed(1);
-        const days = (between / (1000 * 60 * 60 * 24)).toFixed(1);
-        if (seconds < 60) {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${seconds} seconds since ${message.author} last had deth toots`);
-        }
-        else if (minutes < 60) {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${minutes} minutes since ${message.author} last had deth toots`);
-        }
-        else if (hours < 24) {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${hours} hours since ${message.author} last had deth toots`);
-        }
-        else {
-            message.channel.send(`${message.author} last had deth toots on ${myDate.toLocaleString()}. ${days} days since ${message.author} last had deth toots`);
+        let responseMessage = `${message.author} last had deth toots on ${lastTootDate.format(
+          'YYYY-MM-DD HH:mm:ss'
+        )}.`;
+
+        if (days < 1) {
+          const hours = durationInMilliseconds / (1000 * 60 * 60);
+          const minutes = durationInMilliseconds / (1000 * 60);
+          const seconds = durationInMilliseconds / 1000;
+          responseMessage += ` ${hours.toFixed(1)} hours, ${minutes.toFixed(1)} minutes, and ${seconds.toFixed(1)} seconds since ${message.author} last had deth toots`;
+        } else {
+          responseMessage += ` ${days.toFixed(1)} days since ${message.author} last had deth toots`;
         }
 
-		fs.writeFileSync(`./bootjaf/deth.txt`, `${Date.now()}`);
-		return;
-	}
-	},
+        if (dethTootEntry) {
+          await dethTootEntry.update({
+            lastTootDate: now.toDate(),
+          });
+        } else {
+          await DethToot.create({
+            username: message.author.username,
+            lastTootDate: now.toDate(),
+          });
+        }
+
+        message.channel.send(responseMessage);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  },
 };

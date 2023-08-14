@@ -1,34 +1,53 @@
-// const fetch = require('node-fetch');
-const fs = require('fs');
-const emojis = require('../bootjaf/emojis.js');
 const { SlashCommandBuilder } = require('discord.js');
+const Emojis = require('../bootjaf/emojis.js'); // Import the array of emojis
+
+const { Sequelize } = require('sequelize');
+const sequelize = require('../db.js');
+
+const GMCMessage = require('../models/GMCMessage')(sequelize, Sequelize.DataTypes);
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName(`gmc`)
-        .setDescription(`Wish the crew good morning!`),
-    async execute(interaction) {
+  data: new SlashCommandBuilder()
+    .setName('gmc')
+    .setDescription('Wish the crew good morning!'),
+  async execute(interaction) {
+    const today = new Date().toLocaleString('en-us', { weekday: 'long' });
 
-        const gmc = fs.readFileSync(`./bootjaf/gmc.txt`, { "encoding":"utf-8" });
-        const today = new Date().toLocaleString('en-us', { weekday: 'long' });
+    try {
+      const existingGMCMessage = await GMCMessage.findOne({
+        where: { date: today },
+      });
 
+      if (existingGMCMessage) {
+        interaction.reply('The crew has been wished good morning already.');
+      } else {
+        const emojis = Emojis; // Use the imported array of emojis
         const rando = Math.floor(Math.random() * 4) + 3;
 
-        if (gmc == today) {
-            interaction.reply("The crew has been wished good morning already.");
-        }
-        else {
-        fs.writeFileSync(`./bootjaf/gmc.txt`, `${today}`);
-        const emoji = new Array();
-        let i = 0;
-        while (i <= rando) {
-            const randomEmoji = Math.floor(Math.random() * emojis.length) + 1;
-            emoji[i] = emojis[randomEmoji];
-            i++;
+        const emojiIndices = new Set();
+        while (emojiIndices.size < rando) {
+          emojiIndices.add(Math.floor(Math.random() * emojis.length));
         }
 
-        interaction.reply(emoji.join("") + `:regional_indicator_g:` + `:regional_indicator_m:` + `:regional_indicator_c:` +
-            emoji.reverse().join(""));
+        const selectedEmojis = [...emojiIndices].map(index => emojis[index]);
+
+        // Create a new GMCMessage in the database
+        await GMCMessage.create({
+          date: today,
+          emojis: selectedEmojis.join(''),
+        });
+
+        const replyContent =
+          selectedEmojis.join('') +
+          ':regional_indicator_g::regional_indicator_m::regional_indicator_c:' +
+          selectedEmojis.reverse().join('');
+
+        // Send the reply back to the interaction
+        interaction.reply(replyContent);
+      }
+    } catch (error) {
+      console.error(error);
+      interaction.reply('An error occurred while processing the command.');
     }
-    },
+  },
 };
