@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { SlashCommandBuilder } = require('discord.js');
+const { tenorApiKey } = require('../config.json');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -7,7 +8,7 @@ module.exports = {
         .setDescription('Mella Yellin'),
     async execute(interaction) {
 
-        const url = `https://api.tenor.com/v1/search?q=yell&key=VB2LPT9PUU0Z`;
+        const url = `https://api.tenor.com/v1/search?q=yell&key=${tenorApiKey}`;
         const response = await fetch(url);
         const json = await response.json();
 

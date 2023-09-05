@@ -11,15 +11,17 @@ module.exports = {
     .setName('gmc')
     .setDescription('Wish the crew good morning!'),
   async execute(interaction) {
-    const today = new Date().toLocaleString('en-us', { weekday: 'long' });
+    const today = new Date().toLocaleDateString(); // Get the current date in 'YYYY-MM-DD' format
 
     try {
       const existingGMCMessage = await GMCMessage.findOne({
-        where: { date: today },
+        where: { date: today }, // Compare both date and username
       });
 
       if (existingGMCMessage) {
-        interaction.reply('The crew has been wished good morning already.');
+        const existingCreatedAt = existingGMCMessage.createdAt.toLocaleString();
+        const replyContent = `The crew has already been wished good morning today at ${existingCreatedAt}.`;
+        interaction.reply(replyContent);
       } else {
         const emojis = Emojis; // Use the imported array of emojis
         const rando = Math.floor(Math.random() * 4) + 3;
@@ -34,6 +36,7 @@ module.exports = {
         // Create a new GMCMessage in the database
         await GMCMessage.create({
           date: today,
+          username: interaction.user.username, // Include the username in the record
           emojis: selectedEmojis.join(''),
         });
 

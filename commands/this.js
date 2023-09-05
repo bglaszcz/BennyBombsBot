@@ -6,8 +6,16 @@ module.exports = {
         .setDescription(`^^^^^^^^^^`),
     execute(interaction) {
 
+            const gifUrl = `https://media.giphy.com/media/oxLpLI0eNf3Wg/giphy.gif`;
 
-            const url = `https://media.giphy.com/media/oxLpLI0eNf3Wg/giphy.gif`;
-            interaction.reply(url);
+            const gifEmbed = {
+                embeds: [{
+                        image: {
+                                url: gifUrl,
+                        },
+                }],
+            };
+
+            interaction.reply(gifEmbed);
         },
 };

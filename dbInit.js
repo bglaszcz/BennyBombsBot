@@ -1,25 +1,36 @@
-// const { InteractionCollector } = require('discord.js');
+const { InteractionCollector } = require('discord.js');
 const Sequelize = require('sequelize');
 const sequelize = require('./db.js');
 
-// const BootJaf = require('./models/BootJaf.js')(sequelize, Sequelize.DataTypes);
-const GMCMessage = require('./models/GMCMessage.js')(sequelize, Sequelize.DataTypes);
+const User = require('./models/User.js')(sequelize, Sequelize.DataTypes);
 
 const force = process.argv.includes('--force') || process.argv.includes('-f');
 
-GMCMessage.sync();
+(async () => {
+    try {
+        // Sync the "User" model to the database
+        await User.sync({ force });
 
-// sequelize.sync({ force }).then(async () => {
-// 	const doesrynbill = [
-// 		DoesRynBill.upsert({ username: 'BennyBombs',
-// 							attempts: 1,
-// 							hours: 1,
-// 							bill_number: 1,
-// 							billed: "f" }),
-// 	];
+        // Example data for initialization
+        const initialUserData = [
+            {
+                userId: '204351379861536770',
+                username: 'bennybombs',
+                xp: 0,
+                level: 1,
+                lastMessageTime: 0,
+            },
+            // Add more initial data entries as needed
+        ];
 
-// 	await Promise.all(doesrynbill);
-	console.log('Database synced');
+        // Create initial user data using bulkCreate
+        await User.bulkCreate(initialUserData);
 
-// 	sequelize.close();
-// }).catch(console.error);
+        console.log('Database synced and initialized');
+
+        // Close the database connection
+        sequelize.close();
+    } catch (error) {
+        console.error('Error syncing and initializing database:', error);
+    }
+})();

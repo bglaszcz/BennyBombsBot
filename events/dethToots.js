@@ -8,11 +8,10 @@ const DethToot = require('../models/DethToot.js')(sequelize, Sequelize.DataTypes
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
-    const notAllowedUserIds = ['806354375151845406'];
+    if (message.author.bot) return;
 
     if (
-      message.content.toLowerCase().includes('deth toot') &&
-      !notAllowedUserIds.includes(message.author.id)
+      message.content.toLowerCase().includes('deth toot')
     ) {
       try {
         const dethTootEntry = await DethToot.findOne({
@@ -26,9 +25,7 @@ module.exports = {
         const durationInMilliseconds = now.diff(lastTootDate);
         const days = durationInMilliseconds / (1000 * 60 * 60 * 24); // Convert milliseconds to days
 
-        let responseMessage = `${message.author} last had deth toots on ${lastTootDate.format(
-          'YYYY-MM-DD HH:mm:ss'
-        )}.`;
+        let responseMessage = `${message.author} last had deth toots on ${lastTootDate.toLocaleString()}.`;
 
         if (days < 1) {
           const hours = durationInMilliseconds / (1000 * 60 * 60);

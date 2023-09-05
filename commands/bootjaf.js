@@ -2,6 +2,7 @@ const fetch = require('node-fetch');
 const { SlashCommandBuilder } = require('discord.js');
 const Sequelize = require('sequelize');
 const sequelize = require('../db.js');
+const { tenorApiKey } = require('../config.json');
 
 const BootJaf = require('../models/BootJaf')(sequelize, Sequelize.DataTypes);
 
@@ -29,7 +30,7 @@ module.exports = {
             console.log(error);
         }
 
-        const url = `https://g.tenor.com/v1/search?q=milk&key=VB2LPT9PUU0Z&limit=50`;
+        const url = `https://g.tenor.com/v1/search?q=milk&key=${tenorApiKey}&limit=50`;
         const response = await fetch(url);
         const json = await response.json();
 

@@ -1,7 +1,7 @@
 // const fetch = require('node-fetch');
 const fs = require('fs');
 const emojis = require('../bootjaf/emojis.js');
-const { SlashCommandBuilder, messageLink } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
