@@ -19,7 +19,7 @@
     "discord.js": "^14.11.0",
     "dotenv": "^8.6.0",
     "node-fetch": "^2.6.12",
-    "openai": "^3.3.0",
+    "openai": "^4.6.0",
     "pg": "^8.8.0",
     "pg-hstore": "^2.3.4",
     "request": "^2.88.2",
