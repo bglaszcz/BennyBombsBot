@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const dayjs = require('dayjs');
+// const dayjs = require('dayjs');
 const { Events } = require('discord.js');
 
 const sequelize = require('../db.js');
@@ -56,6 +56,16 @@ module.exports = {
           `🌟 Blessings upon blessings! ${message.author.username} has been lifted to level ${user.level}, riding the wave of good fortune! 🌈✨`,
           `🎁 What a gift! ${message.author.username} is climbing to level ${user.level} with abundant blessings in their backpack! 🎂🎈`,
           `⭐ It's a celestial celebration! ${message.author.username} ascended to level ${user.level}, surrounded by the blessings of the universe! ⚡🌠`,
+          `☕ Watch out! ${message.author.username} just shotgunned a coffee and skyrocketed to level ${user.level}! Lucas' special brew never misses! 🚀✨`,
+          `🍑 Double cheeked up! ${message.author.username} just leveled up to ${user.level}, with a boost from Nancy's legendary badonkadonk! It's giving major gyatt energy! 🍑💥`,
+          `🎒 Pack it up! ${message.author.username} just leveled up to ${user.level}, with Sus Shannon sneaking in some XP on the sly. Who knew that little side-eye came with benefits? 😏✨`,
+          `💎 IYKYK, ${message.author.username} just hit level ${user.level} and is shining brighter than Lucas' forehead on a hot day! That's some serious bling, fam! 💎😎`,
+          `🏇 Keep it giddy, fam! ${message.author.username} leveled up to ${user.level}, fueled by Sus Shannon’s spicy secrets and Lucas’ ranch shenanigans! 🤠🔥`,
+          `☕ Coffee Toots strikes again! ${message.author.username} just zoomed up to level ${user.level}, fueled by the unholy combo of espresso and sheer willpower! 🚀💨`,
+          `🍑 Nancy's badonkadonk magic strikes again! ${message.author.username} just bounced to level ${user.level}, leaving everyone in awe of that power move! 🥵💃`,
+          `🛠️ Lucas might be built different, but ${message.author.username} just hit level ${user.level} with a little help from those… let’s call them “extra hands” 👀🔧`,
+          `✨ Bless up, fam! ${message.author.username} just vibed their way to level ${user.level} with a sprinkle of Lucas’ luck and Nancy’s gyatt-worthy energy! 🌟🍑`,
+          `🛠️ Lucas might be Mr. Fix-It, but ${message.author.username} just finessed their way to level ${user.level} with a little help from the squad. Blessings all around! 🔧✨`,
         ];
         const randomMessage = levelUpMessages[Math.floor(Math.random() * levelUpMessages.length)];
         message.channel.send(randomMessage);

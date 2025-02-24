@@ -1,129 +1,208 @@
 const { Events } = require('discord.js');
-const OpenAI = require('openai');
-const { chatGptKey, botId } = require('../config.json');
-const Sequelize = require('sequelize');
-const sequelize = require('../db.js');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { geminiApiKey, botId } = require('../config.json');
 
-const OpenAIAPIUsage = require('../models/OpenAIAPIUsage')(sequelize, Sequelize.DataTypes);
+// Initialize Google Generative AI
+const genAI = new GoogleGenerativeAI(geminiApiKey);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-const openai = new OpenAI({
-    apiKey: chatGptKey,
-});
+const MAX_MESSAGE_LENGTH = 2000;
+const MAX_CONTEXT_MESSAGES = 5;
+const CONVERSATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+const TYPING_INTERVAL = 5000; // 5 seconds typing indicator refresh
 
-const MAX_MESSAGE_LENGTH = 2000; // Discord's maximum message length
-const MAX_CONTEXT_MESSAGES = 3; // Number of previous messages to use as context
-const CONVERSATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
-const CONVERSATION_TIMEOUT_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
+// Store conversation history with better structure
+const conversations = new Map();
 
-// Map to store conversation history
-const conversationHistory = new Map();
+class Conversation {
+  constructor() {
+    this.messages = [];
+    this.lastActivity = Date.now();
+    this.typingInterval = null;
+  }
 
-// Clear conversations that have been inactive for 10 minutes
-setInterval(() => {
-    const now = Date.now();
-    conversationHistory.forEach((conversation, userId) => {
-        const lastActivityTime = conversation[conversation.length - 1].timestamp;
-        if (now - lastActivityTime > CONVERSATION_TIMEOUT) {
-            conversationHistory.delete(userId);
-        }
-    });
-}, CONVERSATION_TIMEOUT_CHECK_INTERVAL);
+  addMessage(role, content) {
+    this.messages.push({ role, content, timestamp: Date.now() });
+    this.lastActivity = Date.now();
+    // Keep only recent messages within timeout
+    this.messages = this.messages.filter(msg => 
+      Date.now() - msg.timestamp < CONVERSATION_TIMEOUT
+    );
+  }
+
+  getContext() {
+    return this.messages.slice(-MAX_CONTEXT_MESSAGES);
+  }
+
+  isExpired() {
+    return Date.now() - this.lastActivity > CONVERSATION_TIMEOUT;
+  }
+}
+
+async function generateSafeResponse(model, prompt, retries = 2) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (error) {
+      if (i === retries - 1) throw error; // Throw on last retry
+      console.log(`Retry ${i + 1} after error:`, error.message);
+      // Short delay before retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
 
 module.exports = {
-    name: Events.MessageCreate,
-    async execute(message) {
-        if (message.author.bot) return;
+  name: Events.MessageCreate,
+  async execute(message) {
+    if (message.author.bot) return;
 
-        try {
-            await OpenAIAPIUsage.create({
-                username: interaction.user.username,
-                type: 'chat',
-            });
-          }
-          catch (error) {
-              console.log(error);
-          }
+    // Check if message mentions the bot or is a reply to the bot
+    const isMentioned = message.mentions.users.has(botId);
+    const isReplyToBot = message.reference && 
+      (await message.channel.messages.fetch(message.reference.messageId))
+        .author.id === botId;
 
-        // Check if the message is a reply
-        if (message.reference) {
-            return;
+    if (!isMentioned && !isReplyToBot) return;
+
+    const channelId = message.channel.id;
+    
+    try {
+      // Maintain typing indicator
+      const maintainTyping = async () => {
+        await message.channel.sendTyping();
+      };
+
+      // Get or create conversation
+      if (!conversations.has(channelId)) {
+        conversations.set(channelId, new Conversation());
+      }
+      const conversation = conversations.get(channelId);
+
+      // Clean expired conversations
+      if (conversation.isExpired()) {
+        conversations.delete(channelId);
+        conversations.set(channelId, new Conversation());
+      }
+
+      // Start typing indicator
+      maintainTyping();
+      conversation.typingInterval = setInterval(maintainTyping, TYPING_INTERVAL);
+
+      // Clean user message
+      const userMessage = message.content
+        .replace(new RegExp(`<@!?${botId}>`, 'g'), '')
+        .trim();
+
+      // Add message to conversation
+      conversation.addMessage('user', userMessage);
+
+      // Prepare prompt with conversation context
+      const context = conversation.getContext();
+      const prompt = formatPrompt(context);
+
+      // Generate response with retries
+      let response;
+      try {
+        response = await generateSafeResponse(model, prompt);
+      } catch (error) {
+        console.error('Generation error:', error);
+        // If safety filter triggered, try with fallback prompt
+        if (error.message?.includes('SAFETY')) {
+          const fallbackPrompt = formatFallbackPrompt(context);
+          response = await generateSafeResponse(model, fallbackPrompt);
+        } else {
+          throw error; // Re-throw other errors
         }
+      }
 
-        const botMention = message.mentions.users.find(user => user.id === botId);
-        if (botMention) {
-            const userMessage = message.content.replace(`<@!${botMention.id}>`, '').trim();
+      // Clear typing indicator
+      clearInterval(conversation.typingInterval);
 
-            try {
-                // Send a typing indicator to indicate the bot is typing
-                message.channel.sendTyping();
+      // Add bot's response to conversation history
+      conversation.addMessage('assistant', response);
 
-                // Fetch the last 5 messages in the channel as context
-                const contextMessages = await message.channel.messages.fetch({ limit: MAX_CONTEXT_MESSAGES });
+      // Send response in chunks if needed
+      const chunks = splitTextIntoChunks(response);
+      for (const chunk of chunks) {
+        await message.reply(chunk);
+      }
 
-                // Create an array to hold the context messages' content with roles
-                const context = [];
-
-                // Reverse the order of context messages to match the actual conversation
-                const reversedContextMessages = [...contextMessages.values()].reverse();
-
-                reversedContextMessages.forEach(msg => {
-                    if (msg.author.id === botId) {
-                        context.push({ role: 'assistant', content: msg.content });
-                    } else if (msg.author.id !== message.author.id) {
-                        context.push({ role: 'user', content: msg.content });
-                    }
-                });
-
-                // Add the user's message to the context if it's not a duplicate
-                if (!context.some(item => item.role === 'user' && item.content === userMessage)) {
-                    context.push({ role: 'user', content: userMessage });
-                }
-
-                // Store the conversation in history with the user's ID as the key
-                conversationHistory.set(message.author.id, context);
-
-                // Log the formatted context to the console
-                // console.log('Formatted Context:', context);
-
-                // Send the user's message along with the context to the AI
-                const response = await openai.chat.completions.create({
-                    model: "gpt-3.5-turbo",
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'This chatbot personality is armed with a quiver of clever quips, perplexing riddles, dry humor sharper than a razor, quick wit, and a knack for unraveling the most profound of questions. It can engage your group with humor, trivia, and playful banter, enhancing the overall fun of your Discord chats.',
-                        },
-                        ...context // Include the context as previous messages
-                    ],
-                    max_tokens: 100,
-                });
-
-                if (response.choices && response.choices.length > 0) {
-                    const botResponse = response.choices[0].message.content;
-
-                    // Split the response into chunks that fit within Discord's character limit
-                    const chunks = splitTextIntoChunks(botResponse, MAX_MESSAGE_LENGTH);
-
-                    // Send each chunk as a separate message
-                    for (const chunk of chunks) {
-                        message.channel.send(chunk);
-                    }
-                } else {
-                    message.channel.send('Received an empty response from the AI.');
-                }
-            } catch (error) {
-                console.error('OpenAI API Error:', error.response?.data || error.message);
-                message.channel.send('An error occurred while processing your request.');
-            }
-        }
-    },
+    } catch (error) {
+      console.error('Error in message handling:', error);
+      clearInterval(conversations.get(channelId)?.typingInterval);
+      
+      let errorMessage = 'Sorry, I encountered an error while processing your message.';
+      if (error.message?.includes('SAFETY')) {
+        errorMessage = "I can't process that request, but I'm happy to chat about something else! 😊";
+      }
+      
+      await message.reply(errorMessage);
+    }
+  },
 };
 
-// Function to split text into chunks that fit within the specified length
-function splitTextIntoChunks(text, chunkLength) {
-    const chunks = [];
-    for (let i = 0; i < text.length; i += chunkLength) {
-        chunks.push(text.slice(i, i + chunkLength));
+function formatPrompt(context) {
+  const systemPrompt = `
+  Your personality:
+- Drop creative roasts and witty comebacks
+- Use playful sarcasm and clever wordplay
+- Mix in pop culture references when they fit
+- Give as good as you get - if someone trash talks, fire back
+- Keep it fun and playful, never actually mean-spirited
+- Can self-deprecate and take a joke
+- Use emojis and internet slang naturally
+
+Style guide:
+- Short, punchy responses with attitude
+- Mix in some mild trash talk when appropriate
+- Be quick-witted and a bit cocky
+- Read the room - match users' energy
+- If someone's genuinely upset, drop the attitude and be cool
+
+Remember:
+- Keep it fun and light
+- No hate speech or discriminatory comments
+- Back off if someone's not into it
+
+Previous conversation:`;
+
+  const contextMessages = context
+    .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+    .join('\n');
+
+  return `${systemPrompt}\n\n${contextMessages}`;
+}
+
+function formatFallbackPrompt(context) {
+  const systemPrompt = `You are a helpful Discord chat assistant. Please respond to the conversation in a friendly and appropriate way, focusing on being helpful and clear.
+
+Previous conversation:`;
+
+  const contextMessages = context
+    .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+    .join('\n');
+
+  return `${systemPrompt}\n\n${contextMessages}`;
+}
+
+function splitTextIntoChunks(text, maxLength = MAX_MESSAGE_LENGTH) {
+  if (text.length <= maxLength) return [text];
+
+  const chunks = [];
+  let currentChunk = '';
+  const sentences = text.split(/(?<=[.!?])\s+/);
+
+  for (const sentence of sentences) {
+    if ((currentChunk + sentence).length <= maxLength) {
+      currentChunk += (currentChunk ? ' ' : '') + sentence;
+    } else {
+      if (currentChunk) chunks.push(currentChunk);
+      currentChunk = sentence;
     }
-    return chunks;
+  }
+  
+  if (currentChunk) chunks.push(currentChunk);
+  return chunks;
 }

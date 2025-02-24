@@ -1,5 +1,5 @@
 const { REST, Routes } = require('discord.js');
-const { clientId, token } = require('./config.json');
+const { clientId, token } = require('../config.json');
 const fs = require('fs');
 const path = require('path');
 
@@ -7,7 +7,7 @@ const path = require('path');
 const commands = [];
 
 // Define the path to the root commands directory
-const commandsPath = path.join(__dirname, 'commands');
+const commandsPath = path.join(__dirname, '../commands');
 
 // Recursively get all .js files from the subdirectories
 function getCommandFiles(dir) {

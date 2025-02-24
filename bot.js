@@ -3,38 +3,79 @@ const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const { token } = require('./config.json');
 
-const client = new Client({ intents: [
-							GatewayIntentBits.Guilds,
-							GatewayIntentBits.GuildMessages,
-							GatewayIntentBits.MessageContent,
-							],
-						});
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+    ],
+});
 
 client.commands = new Collection();
 
-// Command Handling
+// Command Handling with Debugging
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
+console.log('Loading commands...');
+
 for (const file of commandFiles) {
-	const filePath = path.join(commandsPath, file);
-	const command = require(filePath);
-	client.commands.set(command.data.name, command);
+    const filePath = path.join(commandsPath, file);
+    
+    try {
+        const command = require(filePath);
+
+        // Debugging: Log command structure
+        // console.log(`Loading command from ${filePath}:`, command);
+
+        // Check if command has the required properties
+        if (!command || !command.data || !command.data.name) {
+            console.error(`Error in ${file}: Missing 'data' or 'data.name' property.`);
+            continue; // Skip this file if it's not structured correctly
+        }
+
+        // Add the command to the client's command collection
+        client.commands.set(command.data.name, command);
+        // console.log(`Command '${command.data.name}' loaded successfully.`);
+    } catch (error) {
+        console.error(`Failed to load command ${file}:`, error);
+    }
 }
 
-// Event Handling
+// Event Handling with Debugging
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
+console.log('Loading events...');
+
 for (const file of eventFiles) {
-	const filePath = path.join(eventsPath, file);
-	const event = require(filePath);
-	if (event.once) {
-		client.once(event.name, (...args) => event.execute(...args));
-	}
-	else {
-		client.on(event.name, (...args) => event.execute(...args));
-	}
+    const filePath = path.join(eventsPath, file);
+
+    try {
+        const event = require(filePath);
+
+        // Debugging: Log event structure
+        // console.log(`Loading event from ${filePath}:`, event);
+
+        // Check if event has the required properties
+        if (!event || !event.name || !event.execute) {
+            console.error(`Error in ${file}: Missing 'name' or 'execute' property.`);
+            continue; // Skip this file if it's not structured correctly
+        }
+
+        if (event.once) {
+            client.once(event.name, (...args) => event.execute(...args));
+            // console.log(`Event '${event.name}' loaded as once.`);
+        } else {
+            client.on(event.name, (...args) => event.execute(...args));
+            // console.log(`Event '${event.name}' loaded.`);
+        }
+    } catch (error) {
+        console.error(`Failed to load event ${file}:`, error);
+    }
 }
 
-client.login(token);
+// Log in the client
+client.login(token)
+    .then(() => console.log('Logged in successfully.'))
+    .catch(error => console.error('Failed to log in:', error));
