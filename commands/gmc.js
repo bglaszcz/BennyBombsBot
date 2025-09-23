@@ -11,11 +11,23 @@ module.exports = {
     .setName('gmc')
     .setDescription('Wish the crew good morning!'),
   async execute(interaction) {
-    const today = new Date().toLocaleDateString(); // Get the current date in 'YYYY-MM-DD' format
-
+    const today = new Date();
+    const todayString = today.toLocaleDateString(); // For database comparison
+    
+    // Check if today is April 7th, 2025
+    const isApril14th2025 = today.getFullYear() === 2028 && 
+                           today.getMonth() === 3 && // Months are 0-indexed (0 = January, 3 = April)
+                           today.getDate() === 21;
+    
+    if (isApril14th2025) {
+      // Return the special message on April 14th, 2025
+      return interaction.reply("JAF WE'RE GOING TO NEED THAT INSTA @");
+    }
+    
+    // Regular GMC command logic for other days
     try {
       const existingGMCMessage = await GMCMessage.findOne({
-        where: { date: today }, // Compare both date and username
+        where: { date: todayString },
       });
 
       if (existingGMCMessage) {
@@ -35,7 +47,7 @@ module.exports = {
 
         // Create a new GMCMessage in the database
         await GMCMessage.create({
-          date: today,
+          date: todayString,
           username: interaction.user.username, // Include the username in the record
           emojis: selectedEmojis.join(''),
         });

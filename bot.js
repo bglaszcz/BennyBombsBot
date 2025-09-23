@@ -3,6 +3,10 @@ const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const { token } = require('./config.json');
 
+// Add database imports
+const { Sequelize } = require('sequelize');
+const sequelize = require('./db.js');
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -12,6 +16,22 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+
+// Initialize database models
+console.log('Initializing database models...');
+try {
+    // Load your existing models
+    const GMCMessage = require('./models/GMCMessage')(sequelize, Sequelize.DataTypes);
+    const GACMessage = require('./models/GACMessage')(sequelize, Sequelize.DataTypes);
+    
+    // Sync all models (this creates the tables if they don't exist)
+    sequelize.sync()
+        .then(() => console.log('Database models synchronized successfully.'))
+        .catch(error => console.error('Failed to sync database models:', error));
+        
+} catch (error) {
+    console.error('Error initializing database models:', error);
+}
 
 // Command Handling with Debugging
 const commandsPath = path.join(__dirname, 'commands');

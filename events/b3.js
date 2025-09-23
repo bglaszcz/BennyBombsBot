@@ -4,7 +4,7 @@ const { geminiApiKey, botId } = require('../config.json');
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_CONTEXT_MESSAGES = 5;
@@ -37,6 +37,14 @@ class Conversation {
   isExpired() {
     return Date.now() - this.lastActivity > CONVERSATION_TIMEOUT;
   }
+
+  // Add method to safely clear typing
+  clearTyping() {
+    if (this.typingInterval) {
+      clearInterval(this.typingInterval);
+      this.typingInterval = null;
+    }
+  }
 }
 
 async function generateSafeResponse(model, prompt, retries = 2) {
@@ -67,23 +75,30 @@ module.exports = {
     if (!isMentioned && !isReplyToBot) return;
 
     const channelId = message.channel.id;
+    let conversation = null;
     
     try {
       // Maintain typing indicator
       const maintainTyping = async () => {
-        await message.channel.sendTyping();
+        try {
+          await message.channel.sendTyping();
+        } catch (error) {
+          console.error('Error sending typing indicator:', error);
+        }
       };
 
       // Get or create conversation
       if (!conversations.has(channelId)) {
         conversations.set(channelId, new Conversation());
       }
-      const conversation = conversations.get(channelId);
+      conversation = conversations.get(channelId);
 
       // Clean expired conversations
       if (conversation.isExpired()) {
+        conversation.clearTyping(); // Clear any existing typing
         conversations.delete(channelId);
         conversations.set(channelId, new Conversation());
+        conversation = conversations.get(channelId);
       }
 
       // Start typing indicator
@@ -117,8 +132,8 @@ module.exports = {
         }
       }
 
-      // Clear typing indicator
-      clearInterval(conversation.typingInterval);
+      // Clear typing indicator BEFORE sending response
+      conversation.clearTyping();
 
       // Add bot's response to conversation history
       conversation.addMessage('assistant', response);
@@ -131,14 +146,22 @@ module.exports = {
 
     } catch (error) {
       console.error('Error in message handling:', error);
-      clearInterval(conversations.get(channelId)?.typingInterval);
+      
+      // Always clear typing indicator on error
+      if (conversation) {
+        conversation.clearTyping();
+      }
       
       let errorMessage = 'Sorry, I encountered an error while processing your message.';
       if (error.message?.includes('SAFETY')) {
         errorMessage = "I can't process that request, but I'm happy to chat about something else! 😊";
       }
       
-      await message.reply(errorMessage);
+      try {
+        await message.reply(errorMessage);
+      } catch (replyError) {
+        console.error('Error sending error message:', replyError);
+      }
     }
   },
 };
