@@ -4,6 +4,10 @@
   "description": "BennyBombsBot discord bot",
   "main": "bot.js",
   "scripts": {
+    "start": "node bot.js",
+    "deploy": "node deploy-commands.js --guild",
+    "deploy:global": "node deploy-commands.js --global",
+    "deploy:delete": "node deploy-commands.js --delete",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

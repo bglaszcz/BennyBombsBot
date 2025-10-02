@@ -1,10 +1,11 @@
 const { Events } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { geminiApiKey, botId } = require('../config.json');
+const userMemory = require('../userMemory');
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_CONTEXT_MESSAGES = 5;
@@ -21,8 +22,14 @@ class Conversation {
     this.typingInterval = null;
   }
 
-  addMessage(role, content) {
-    this.messages.push({ role, content, timestamp: Date.now() });
+  addMessage(role, content, username = null, userId = null) {
+    this.messages.push({ 
+      role, 
+      content, 
+      username,
+      userId,
+      timestamp: Date.now() 
+    });
     this.lastActivity = Date.now();
     // Keep only recent messages within timeout
     this.messages = this.messages.filter(msg => 
@@ -36,14 +43,6 @@ class Conversation {
 
   isExpired() {
     return Date.now() - this.lastActivity > CONVERSATION_TIMEOUT;
-  }
-
-  // Add method to safely clear typing
-  clearTyping() {
-    if (this.typingInterval) {
-      clearInterval(this.typingInterval);
-      this.typingInterval = null;
-    }
   }
 }
 
@@ -61,6 +60,27 @@ async function generateSafeResponse(model, prompt, retries = 2) {
   }
 }
 
+// Check for achievements
+function checkAchievements(userId, message) {
+  const memory = userMemory.getUserMemory(userId);
+  
+  // First chat achievement
+  if (memory.messageCount === 1) {
+    userMemory.addAchievement(userId, 'First Chat');
+  }
+  
+  // Night owl achievement (after 2am)
+  const hour = new Date().getHours();
+  if (hour >= 2 && hour < 6) {
+    userMemory.addAchievement(userId, 'Night Owl');
+  }
+  
+  // Conversation master (50+ messages)
+  if (memory.messageCount === 50) {
+    userMemory.addAchievement(userId, 'Conversation Master');
+  }
+}
+
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
@@ -75,30 +95,28 @@ module.exports = {
     if (!isMentioned && !isReplyToBot) return;
 
     const channelId = message.channel.id;
-    let conversation = null;
+    const userId = message.author.id;
     
     try {
+      // Update user memory - last seen and message count
+      userMemory.updateLastSeen(userId, message.author.username);
+      checkAchievements(userId, message);
+
       // Maintain typing indicator
       const maintainTyping = async () => {
-        try {
-          await message.channel.sendTyping();
-        } catch (error) {
-          console.error('Error sending typing indicator:', error);
-        }
+        await message.channel.sendTyping();
       };
 
       // Get or create conversation
       if (!conversations.has(channelId)) {
         conversations.set(channelId, new Conversation());
       }
-      conversation = conversations.get(channelId);
+      const conversation = conversations.get(channelId);
 
       // Clean expired conversations
       if (conversation.isExpired()) {
-        conversation.clearTyping(); // Clear any existing typing
         conversations.delete(channelId);
         conversations.set(channelId, new Conversation());
-        conversation = conversations.get(channelId);
       }
 
       // Start typing indicator
@@ -110,12 +128,13 @@ module.exports = {
         .replace(new RegExp(`<@!?${botId}>`, 'g'), '')
         .trim();
 
-      // Add message to conversation
-      conversation.addMessage('user', userMessage);
+      // Add message to conversation WITH USERNAME AND USER ID
+      conversation.addMessage('user', userMessage, message.author.username, userId);
 
-      // Prepare prompt with conversation context
+      // Prepare prompt with conversation context AND MEMORY
       const context = conversation.getContext();
-      const prompt = formatPrompt(context);
+      const memoryContext = userMemory.formatMemoryForPrompt(userId);
+      const prompt = formatPrompt(context, message, memoryContext);
 
       // Generate response with retries
       let response;
@@ -125,18 +144,28 @@ module.exports = {
         console.error('Generation error:', error);
         // If safety filter triggered, try with fallback prompt
         if (error.message?.includes('SAFETY')) {
-          const fallbackPrompt = formatFallbackPrompt(context);
+          const fallbackPrompt = formatFallbackPrompt(context, message);
           response = await generateSafeResponse(model, fallbackPrompt);
         } else {
           throw error; // Re-throw other errors
         }
       }
 
-      // Clear typing indicator BEFORE sending response
-      conversation.clearTyping();
+      // Clear typing indicator
+      clearInterval(conversation.typingInterval);
+
+      // ANALYZE CONVERSATION FOR MEMORIES
+      const potentialMemories = userMemory.analyzeForMemories(userMessage, response);
+      potentialMemories.forEach(mem => {
+        if (mem.type === 'fact') {
+          userMemory.addFact(userId, mem.value);
+        } else if (mem.type === 'preference') {
+          userMemory.addPreference(userId, mem.category, mem.value);
+        }
+      });
 
       // Add bot's response to conversation history
-      conversation.addMessage('assistant', response);
+      conversation.addMessage('assistant', response, 'Assistant');
 
       // Send response in chunks if needed
       const chunks = splitTextIntoChunks(response);
@@ -146,27 +175,19 @@ module.exports = {
 
     } catch (error) {
       console.error('Error in message handling:', error);
-      
-      // Always clear typing indicator on error
-      if (conversation) {
-        conversation.clearTyping();
-      }
+      clearInterval(conversations.get(channelId)?.typingInterval);
       
       let errorMessage = 'Sorry, I encountered an error while processing your message.';
       if (error.message?.includes('SAFETY')) {
         errorMessage = "I can't process that request, but I'm happy to chat about something else! 😊";
       }
       
-      try {
-        await message.reply(errorMessage);
-      } catch (replyError) {
-        console.error('Error sending error message:', replyError);
-      }
+      await message.reply(errorMessage);
     }
   },
 };
 
-function formatPrompt(context) {
+function formatPrompt(context, message, memoryContext) {
   const systemPrompt = `
   Your personality:
 - Drop creative roasts and witty comebacks
@@ -183,28 +204,44 @@ Style guide:
 - Be quick-witted and a bit cocky
 - Read the room - match users' energy
 - If someone's genuinely upset, drop the attitude and be cool
+- Reference users by their username when it makes sense
+- Use your memory of users to make conversations more personal and engaging
+- Occasionally reference things you remember about them naturally
+
+Current context:
+- Server: ${message.guild?.name || 'DM'}
+- Channel: ${message.channel.name || 'DM'}
+- Current user: ${message.author.username}
+
+Memory about this user:
+${memoryContext}
 
 Remember:
 - Keep it fun and light
 - No hate speech or discriminatory comments
 - Back off if someone's not into it
+- Use your memory to create continuity in conversations
 
 Previous conversation:`;
 
   const contextMessages = context
-    .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+    .map(msg => `${msg.username || (msg.role === 'user' ? 'User' : 'Assistant')}: ${msg.content}`)
     .join('\n');
 
   return `${systemPrompt}\n\n${contextMessages}`;
 }
 
-function formatFallbackPrompt(context) {
+function formatFallbackPrompt(context, message) {
   const systemPrompt = `You are a helpful Discord chat assistant. Please respond to the conversation in a friendly and appropriate way, focusing on being helpful and clear.
+
+Current context:
+- Server: ${message.guild?.name || 'DM'}
+- Current user: ${message.author.username}
 
 Previous conversation:`;
 
   const contextMessages = context
-    .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+    .map(msg => `${msg.username || (msg.role === 'user' ? 'User' : 'Assistant')}: ${msg.content}`)
     .join('\n');
 
   return `${systemPrompt}\n\n${contextMessages}`;
