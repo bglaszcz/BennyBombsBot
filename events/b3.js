@@ -5,7 +5,7 @@ const userMemory = require('../userMemory');
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_CONTEXT_MESSAGES = 5;
@@ -60,27 +60,6 @@ async function generateSafeResponse(model, prompt, retries = 2) {
   }
 }
 
-// Check for achievements
-function checkAchievements(userId, message) {
-  const memory = userMemory.getUserMemory(userId);
-  
-  // First chat achievement
-  if (memory.messageCount === 1) {
-    userMemory.addAchievement(userId, 'First Chat');
-  }
-  
-  // Night owl achievement (after 2am)
-  const hour = new Date().getHours();
-  if (hour >= 2 && hour < 6) {
-    userMemory.addAchievement(userId, 'Night Owl');
-  }
-  
-  // Conversation master (50+ messages)
-  if (memory.messageCount === 50) {
-    userMemory.addAchievement(userId, 'Conversation Master');
-  }
-}
-
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
@@ -100,7 +79,13 @@ module.exports = {
     try {
       // Update user memory - last seen and message count
       userMemory.updateLastSeen(userId, message.author.username);
-      checkAchievements(userId, message);
+      userMemory.checkAchievements(userId);
+
+      // Clean old memories every 10 messages to keep things fresh
+      const memory = userMemory.getUserMemory(userId);
+      if (memory.messageCount % 10 === 0) {
+        userMemory.cleanOldMemories(userId);
+      }
 
       // Maintain typing indicator
       const maintainTyping = async () => {
@@ -154,15 +139,10 @@ module.exports = {
       // Clear typing indicator
       clearInterval(conversation.typingInterval);
 
-      // ANALYZE CONVERSATION FOR MEMORIES
-      const potentialMemories = userMemory.analyzeForMemories(userMessage, response);
-      potentialMemories.forEach(mem => {
-        if (mem.type === 'fact') {
-          userMemory.addFact(userId, mem.value);
-        } else if (mem.type === 'preference') {
-          userMemory.addPreference(userId, mem.category, mem.value);
-        }
-      });
+      // ANALYZE CONVERSATION FOR MEMORIES (runs in background using AI)
+      // This automatically extracts facts, preferences, inside jokes, and roast context
+      userMemory.analyzeForMemories(userId, message.author.username, userMessage, response)
+        .catch(err => console.error('Background memory analysis failed:', err));
 
       // Add bot's response to conversation history
       conversation.addMessage('assistant', response, 'Assistant');
@@ -207,6 +187,8 @@ Style guide:
 - Reference users by their username when it makes sense
 - Use your memory of users to make conversations more personal and engaging
 - Occasionally reference things you remember about them naturally
+- NEVER mention achievements, message counts, or stats unless the user specifically asks
+- Don't talk about "first chat" or how long you've known someone
 
 Current context:
 - Server: ${message.guild?.name || 'DM'}
