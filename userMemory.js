@@ -36,6 +36,7 @@ function getUserMemory(userId) {
   if (!memories[userId]) {
     memories[userId] = {
       username: null,
+      nickname: null, // Manual override for what to call this person
       facts: [],
       preferences: {},
       insideJokes: [],
@@ -54,6 +55,12 @@ function getUserMemory(userId) {
 function updateLastSeen(userId, username) {
   const memory = getUserMemory(userId);
   memory.username = username;
+  
+  // Set nickname to username if not already set
+  if (!memory.nickname) {
+    memory.nickname = username;
+  }
+  
   memory.lastSeen = new Date().toISOString();
   memory.messageCount++;
   saveMemories(memories);
@@ -237,8 +244,9 @@ IMPORTANT RULES:
 // Format memory for prompt context
 function formatMemoryForPrompt(userId) {
   const memory = getUserMemory(userId);
+  const displayName = memory.nickname || memory.username;
   
-  let context = `User: ${memory.username}\n`;
+  let context = `User: ${displayName}\n`;
   context += `Messages sent: ${memory.messageCount}\n`;
   context += `Known since: ${new Date(memory.firstSeen).toLocaleDateString()}\n`;
   
@@ -340,6 +348,15 @@ function checkAchievements(userId) {
   if (memory.messageCount === 500) {
     addAchievement(userId, 'Server Regular');
   }
+}
+
+// Manually set a nickname for a user
+function setNickname(userId, nickname) {
+  const memory = getUserMemory(userId);
+  memory.nickname = nickname;
+  saveMemories(memories);
+  console.log(`✏️ Set nickname for ${memory.username}: ${nickname}`);
+  return memory;
 }
 
 // Clean old memories based on age and usage
@@ -478,6 +495,7 @@ module.exports = {
   addAchievement,
   updateRoastScore,
   checkAchievements,
+  setNickname,
   cleanOldMemories,
   analyzeForMemories,
   formatMemoryForPrompt,

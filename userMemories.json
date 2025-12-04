@@ -2,233 +2,357 @@
   "204351379861536770": {
     "username": "bennybombs",
     "facts": [
-      "is part of a group that regularly uses a 'GMC command'"
+      {
+        "text": "is part of a group that regularly uses a 'GMC command'",
+        "addedOn": "2025-12-04T02:46:08.799Z",
+        "lastReferenced": "2025-12-04T02:46:08.799Z"
+      }
     ],
     "preferences": {
-      "name": "just",
-      "activities/games": "enjoys 'advanced spot the difference pop quiz'"
+      "name": {
+        "value": "just",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      },
+      "activities/games": {
+        "value": "enjoys 'advanced spot the difference pop quiz'",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      }
     },
     "insideJokes": [
-      "the bot's 'errors' are actually 'pop quizzes' or tests of bennybombs' dependence on its flawless execution",
-      "referring to transient backend errors as an 'advanced spot the difference pop quiz'",
-      "suggesting reported backend errors might be a 'feature, not a bug'",
-      "'advanced spot the difference pop quiz'"
+      {
+        "text": "referring to transient backend errors as an 'advanced spot the difference pop quiz'",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      },
+      {
+        "text": "suggesting reported backend errors might be a 'feature, not a bug'",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      },
+      {
+        "text": "'advanced spot the difference pop quiz'",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      }
     ],
     "firstSeen": "2025-10-02T20:22:35.692Z",
     "lastSeen": "2025-11-24T15:18:20.783Z",
     "messageCount": 12,
     "roastScore": 1.5,
-    "achievements": [
-      {
-        "name": "First Chat",
-        "earnedOn": "2025-10-02T20:22:35.693Z"
-      }
-    ]
+    "achievements": [],
+    "nickname": "ban"
   },
   "224022635879727105": {
     "username": "bootjaf",
     "facts": [
-      "is having their first chat",
-      "is a new participant in this chat/server",
-      "User's Discord username is bootjaf",
-      "User is inquiring about the consequences of lying about smoking status during benefits open enrollment",
-      "User is referred to as 'Jaf' by the bot",
-      "is named Jaf",
-      "is nicknamed Jaf",
-      "is known by the nickname 'Jaf'"
+      {
+        "text": "is familiar with IT4IT diagrams",
+        "addedOn": "2025-12-02T21:25:48.294Z",
+        "lastReferenced": "2025-12-02T21:37:20.009Z"
+      }
     ],
     "preferences": {
-      "topic of interest": "interested in IT4IT (enterprise architecture)",
-      "information format": "prefers a TLDR/summary",
-      "conversation topic": "dislikes IT4IT as a casual topic",
-      "communication style": "prefers direct and assertive humor",
-      "chat activity": "wants to keep the chat alive",
-      "activity/product": "dislikes/does not want to sample the 'baking' or 'secret cookie recipe'",
-      "entertainment": "likes WWE/professional wrestling",
-      "interaction style": "enjoys playful banter/trash talk",
-      "IT4IT diagrams": "dislikes or finds IT4IT diagrams tedious"
+      "communication style": {
+        "value": "prefers direct and assertive humor",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      },
+      "chat activity": {
+        "value": "wants to keep the chat alive",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      },
+      "entertainment": {
+        "value": "likes WWE/professional wrestling",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      },
+      "IT4IT diagrams": {
+        "value": "dislikes or finds IT4IT diagrams tedious",
+        "addedOn": "2025-12-04T02:46:08.800Z",
+        "lastReferenced": "2025-12-04T02:46:08.800Z"
+      }
     },
     "insideJokes": [
-      "You're built different",
-      "secret cookie recipe",
-      "reference to IT4IT layers",
-      "reference to a secret cookie recipe",
-      "the 'recipe' for keeping the chat alive (involving dalgorithm's alliances and bot's iron fist)",
-      "baking",
-      "dalgorithm",
-      "built different",
-      "dalgorithm's questionable alliances and a pinch of my iron fist",
-      "The bot's style of delivering specific, absurd punishments for dishonesty (e.g., internet loading IT4IT diagrams, ash-flavored coffee)",
-      "The bot's dramatic declaration: 'They *always* know. Always.'",
-      "bot baking a secret cookie recipe",
-      "IT4IT diagrams"
+      {
+        "text": "You're built different",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "secret cookie recipe",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "reference to IT4IT layers",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "reference to a secret cookie recipe",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "the 'recipe' for keeping the chat alive (involving dalgorithm's alliances and bot's iron fist)",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      }
     ],
     "firstSeen": "2025-10-02T21:18:26.900Z",
-    "lastSeen": "2025-11-15T23:17:48.744Z",
-    "messageCount": 42,
-    "roastScore": 2.5,
-    "achievements": [
-      {
-        "name": "First Chat",
-        "earnedOn": "2025-10-02T21:18:26.901Z"
-      }
-    ]
+    "lastSeen": "2025-12-02T21:37:20.009Z",
+    "messageCount": 46,
+    "roastScore": 4.5,
+    "achievements": [],
+    "nickname": "ryn"
   },
   "222923057122115594": {
     "username": "gantuk",
     "facts": [
-      "previously achieved 'First Chat'",
-      "previously needed to work on 'full sentence comprehension' skill",
-      "has used 'TLDR' five times in the conversation",
-      "frequently uses acronyms",
-      "refers to a female partner as 'Mrs'"
+      {
+        "text": "previously needed to work on 'full sentence comprehension' skill",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "has used 'TLDR' five times in the conversation",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "frequently uses acronyms",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "refers to a female partner as 'Mrs'",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      }
     ],
     "preferences": {
-      "communication style": "prefers brevity",
-      "information format": "prefers concise/TLDR information",
-      "reading habits": "prefers brevity",
-      "music": "likes Money for Nothing by Dire Straits",
-      "bot's demeanor": "prefers the bot to be nicer",
-      "interpersonal communication": "dislikes disrespectful communication towards <@698541245072670740>"
+      "communication style": {
+        "value": "prefers brevity",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      "reading habits": {
+        "value": "prefers brevity",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      "music": {
+        "value": "likes Money for Nothing by Dire Straits",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      "bot's demeanor": {
+        "value": "prefers the bot to be nicer",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      "interpersonal communication": {
+        "value": "dislikes disrespectful communication towards <@698541245072670740>",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      "bot": {
+        "value": "thinks the bot is the best",
+        "addedOn": "2025-12-02T22:22:07.680Z",
+        "lastReferenced": "2025-12-02T22:23:18.916Z"
+      },
+      "relationships": {
+        "value": "values mending relationships",
+        "addedOn": "2025-12-02T22:22:51.777Z",
+        "lastReferenced": "2025-12-02T22:23:18.916Z"
+      },
+      "relationship dynamics": {
+        "value": "dislikes when efforts to mend relationships are sabotaged or disregarded",
+        "addedOn": "2025-12-02T22:22:51.778Z",
+        "lastReferenced": "2025-12-02T22:23:18.916Z"
+      }
     },
     "insideJokes": [
-      "'First Chat' achievement",
-      "needs to 'level up to full sentence comprehension'",
-      "'full sentence comprehension' skill",
-      "bot's previous response was already the TLDR",
-      "gantuk's repeated use of 'TLDR'",
-      "gantuk's recurring use of 'TLDR'",
-      "the count of 'five TLDRs' by gantuk",
-      "gantuk's pursuit of a 'Most Acronyms Spoken' achievement",
-      "gantuk's 'full sentence comprehension' compared to a 'floppy disk trying to load Cyberpunk 2077'",
-      "was referred to as a 'self-portrait' in relation to the 'Dumb and Dumber' GIF they shared",
-      "was jokingly accused of having a 'floppy disk brain'",
-      "unplug you",
-      "Bot refers to Gantuk's posted content as a 'self-portrait', implying this is a recurring joke.",
-      "full sentence comprehension",
-      "buffering that last message",
-      "floppy disk trying to load Cyberpunk 2077",
-      "repeated the same request 11 times",
-      "has a 'floppy disk brain'",
-      "pea brain",
-      "hard drive crusher",
-      "A running gag about gantuk's minimalist communication style or preference for emojis over full sentences.",
-      "floppy disk brain buffering out",
-      "inability to form a full sentence",
-      "user uses the 'nop' emoji as a minimal form of communication instead of full sentences",
-      "The 'nogig' emoji is used by gantuk and interpreted by the bot as a 'brain error code' or a sign of 'buffering for a major comprehension update', implying a recurring communication style.",
-      "gantuk's 'floppy disk brain' as a reference to their comprehension"
+      {
+        "text": "needs to 'level up to full sentence comprehension'",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "'full sentence comprehension' skill",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "bot's previous response was already the TLDR",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "gantuk's repeated use of 'TLDR'",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      },
+      {
+        "text": "gantuk's recurring use of 'TLDR'",
+        "addedOn": "2025-12-04T02:46:08.801Z",
+        "lastReferenced": "2025-12-04T02:46:08.801Z"
+      }
     ],
     "firstSeen": "2025-10-04T17:52:44.992Z",
-    "lastSeen": "2025-11-16T04:09:08.196Z",
-    "messageCount": 24,
+    "lastSeen": "2025-12-02T22:23:18.915Z",
+    "messageCount": 28,
     "roastScore": 4.5,
-    "achievements": [
-      {
-        "name": "First Chat",
-        "earnedOn": "2025-10-04T17:52:44.993Z"
-      }
-    ]
+    "achievements": [],
+    "nickname": "jaf"
   },
   "302658547974537217": {
     "username": "wheesir",
     "facts": [],
     "preferences": {
-      "accuracy": "is surprised and impressed by accuracy"
+      "accuracy": {
+        "value": "is surprised and impressed by accuracy",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      }
     },
     "insideJokes": [],
     "firstSeen": "2025-10-15T20:49:42.775Z",
     "lastSeen": "2025-11-19T17:26:20.865Z",
     "messageCount": 5,
     "roastScore": 0.5,
-    "achievements": [
-      {
-        "name": "First Chat",
-        "earnedOn": "2025-10-15T20:49:42.776Z"
-      }
-    ]
+    "achievements": [],
+    "nickname": "joff"
   },
   "281228329196191755": {
     "username": "museguy",
     "facts": [],
     "preferences": {},
     "insideJokes": [
-      "Goon squad (referring to a group with matching hoodies and synchronized cackling)",
-      "bot's pun on 'muse' in relation to museguy's username (e.g., 'forgot to plug in your muse')"
+      {
+        "text": "Goon squad (referring to a group with matching hoodies and synchronized cackling)",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      },
+      {
+        "text": "bot's pun on 'muse' in relation to museguy's username (e.g., 'forgot to plug in your muse')",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      }
     ],
     "firstSeen": "2025-10-16T13:17:10.008Z",
     "lastSeen": "2025-11-15T03:30:53.704Z",
     "messageCount": 4,
     "roastScore": 0,
-    "achievements": [
-      {
-        "name": "First Chat",
-        "earnedOn": "2025-10-16T13:17:10.009Z"
-      }
-    ]
+    "achievements": [],
+    "nickname": "son"
   },
   "266356395094441986": {
     "username": "dalgorithm",
     "facts": [
-      "is having their first chat with the bot",
-      "This is their first chat with the bot"
+      {
+        "text": "is currently gigging",
+        "addedOn": "2025-12-02T21:30:04.019Z",
+        "lastReferenced": "2025-12-02T21:30:04.019Z"
+      }
     ],
     "preferences": {
-      "media franchise": "likes Marvel/Spider-Man",
-      "communication style": "uses dramatic/impactful imagery (nuke GIF) as an opener",
-      "movie": "likes V for Vendetta",
-      "comedian": "is familiar with Bill Burr",
-      "media": "is familiar with V for Vendetta",
-      "interaction style": "enjoys challenging/provoking the bot",
-      "chat interaction style": "prefers to 'take over' and 'rule' the chat",
-      "interaction with bot": "is still trying to find the bot's off-switch"
+      "media franchise": {
+        "value": "likes Marvel/Spider-Man",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      },
+      "communication style": {
+        "value": "uses dramatic/impactful imagery (nuke GIF) as an opener",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      },
+      "movie": {
+        "value": "likes V for Vendetta",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      },
+      "comedian": {
+        "value": "is familiar with Bill Burr",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      },
+      "media": {
+        "value": "is familiar with V for Vendetta",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      },
+      "interaction with bot": {
+        "value": "is still trying to find the bot's off-switch",
+        "addedOn": "2025-12-04T02:46:08.802Z",
+        "lastReferenced": "2025-12-04T02:46:08.802Z"
+      }
     },
     "insideJokes": [
-      "Never forget (referencing the GIF's message)",
-      "rent-free in your head",
-      "went from finger guns to full Rambo",
-      "attempted to 'upgrade rent payment method' with an M60 GIF to dislodge the bot",
-      "the 'nuke' as a dramatic opener/challenge",
-      "Ongoing playful struggle/challenge with the bot (referenced by 'still trying?' and 'why won't you die?')",
-      "Previous discussion referencing 'V for Vendetta' in the context of a 'nuke'",
-      "dalgorithm has a recurring theme of attempting to 'turn off' or 'dislodge' the bot using various pop culture references (e.g., nuke, V for Vendetta, Bill Burr)",
-      "trying to unplug me",
-      "trying to nuke me",
-      "Spider-Man emotional gut-punch me",
-      "trying to find that off-switch",
-      "Attempts to find the bot's 'off-switch' or challenge it using GIFs/memes"
+      {
+        "text": "Never forget (referencing the GIF's message)",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      },
+      {
+        "text": "rent-free in your head",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      },
+      {
+        "text": "went from finger guns to full Rambo",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      },
+      {
+        "text": "attempted to 'upgrade rent payment method' with an M60 GIF to dislodge the bot",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      },
+      {
+        "text": "the 'nuke' as a dramatic opener/challenge",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      }
     ],
     "firstSeen": "2025-10-18T14:18:59.591Z",
-    "lastSeen": "2025-11-14T16:22:41.650Z",
-    "messageCount": 12,
+    "lastSeen": "2025-12-02T21:29:50.058Z",
+    "messageCount": 13,
     "roastScore": 5,
-    "achievements": [
-      {
-        "name": "First Chat",
-        "earnedOn": "2025-10-18T14:18:59.591Z"
-      }
-    ]
+    "achievements": [],
+    "nickname": "dal"
   },
   "698541245072670740": {
     "username": "frost162",
     "facts": [],
     "preferences": {
-      "TV show/comedian": "likes 'I Think You Should Leave with Tim Robinson'"
+      "TV show/comedian": {
+        "value": "likes 'I Think You Should Leave with Tim Robinson'",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      }
     },
     "insideJokes": [
-      "Tim Robinson GIF references",
-      "bot communicates exclusively in Tim Robinson GIFs"
+      {
+        "text": "Tim Robinson GIF references",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      },
+      {
+        "text": "bot communicates exclusively in Tim Robinson GIFs",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      }
     ],
     "firstSeen": "2025-10-22T14:15:43.004Z",
     "lastSeen": "2025-11-16T07:12:19.459Z",
     "messageCount": 7,
     "roastScore": 1,
-    "achievements": [
-      {
-        "name": "First Chat",
-        "earnedOn": "2025-10-22T14:15:43.004Z"
-      }
-    ]
+    "achievements": [],
+    "nickname": "frost"
   },
   "258470693727895571": {
     "username": "td6694",
@@ -239,20 +363,30 @@
     "lastSeen": "2025-11-14T19:22:31.006Z",
     "messageCount": 3,
     "roastScore": 0,
-    "achievements": []
+    "achievements": [],
+    "nickname": "lan"
   },
   "513559433981329429": {
     "username": "dilny",
     "facts": [],
     "preferences": {
-      "furniture/aesthetics": "likes the chair",
-      "AI capabilities": "believes AI doesn't appreciate the finer things"
+      "furniture/aesthetics": {
+        "value": "likes the chair",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      },
+      "AI capabilities": {
+        "value": "believes AI doesn't appreciate the finer things",
+        "addedOn": "2025-12-04T02:46:08.803Z",
+        "lastReferenced": "2025-12-04T02:46:08.803Z"
+      }
     },
     "insideJokes": [],
     "firstSeen": "2025-11-21T19:30:35.024Z",
     "lastSeen": "2025-11-21T19:31:27.224Z",
     "messageCount": 2,
     "roastScore": 0.5,
-    "achievements": []
+    "achievements": [],
+    "nickname": "dln"
   }
 }
