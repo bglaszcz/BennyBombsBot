@@ -1,11 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey } = require('./config.json');
+const { geminiApiKey, geminiModel } = require('./config.json');
 
 const MEMORY_FILE = path.join(__dirname, 'userMemories.json');
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const memoryModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const memoryModel = genAI.getGenerativeModel({ model: geminiModel });
 
 // Load memories from file
 function loadMemories() {

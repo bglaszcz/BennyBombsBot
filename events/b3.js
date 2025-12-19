@@ -1,11 +1,11 @@
 const { Events } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, botId } = require('../config.json');
+const { geminiApiKey, botId, geminiModel } = require('../config.json');
 const userMemory = require('../userMemory');
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: geminiModel });
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_CONTEXT_MESSAGES = 5;

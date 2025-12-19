@@ -2,6 +2,27 @@ const { SlashCommandBuilder } = require('discord.js');
 const { Sequelize } = require('sequelize');
 const sequelize = require('../db.js');
 const GMCMessage = require('../models/GMCMessage.js')(sequelize, Sequelize.DataTypes);
+const fs = require('fs');
+const path = require('path');
+
+// Helper to get nickname from userMemories
+function getNickname(username) {
+  try {
+    const memoriesPath = path.join(__dirname, '..', 'userMemories.json');
+    if (fs.existsSync(memoriesPath)) {
+      const memories = JSON.parse(fs.readFileSync(memoriesPath, 'utf8'));
+      // Find user by username and return nickname if exists
+      for (const userId in memories) {
+        if (memories[userId].username === username && memories[userId].nickname) {
+          return memories[userId].nickname;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error loading nicknames:', err);
+  }
+  return username;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -38,8 +59,9 @@ module.exports = {
       // Combine the results to generate per-user statistics
       const userStatistics = userTriggerCounts.map((userCount) => {
         const userTime = userTimestamps.find((time) => time.username === userCount.username);
+        const displayName = getNickname(userCount.username);
         return {
-          username: userCount.username,
+          displayName,
           triggerCount: userCount.dataValues.triggerCount,
           averageTimeOfDay: userTime ? userTime.dataValues.averageTimeOfDay : 'N/A',
         };
@@ -48,7 +70,7 @@ module.exports = {
       // Create a formatted response message
       const response = userStatistics
         .map((statistics) => {
-          return `**User:** ${statistics.username}\n` +
+          return `**User:** ${statistics.displayName}\n` +
             `**Trigger Count:** ${statistics.triggerCount}\n` +
             `**Average Time of Day:** ${statistics.averageTimeOfDay !== null ? statistics.averageTimeOfDay : 'N/A'}`;
         })

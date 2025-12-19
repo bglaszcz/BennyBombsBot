@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey } = require('../config.json');
+const { geminiApiKey, geminiModel } = require('../config.json');
 
 const { Sequelize } = require('sequelize');
 const sequelize = require('../db.js');
@@ -9,7 +9,7 @@ const GACMessage = require('../models/GACMessage')(sequelize, Sequelize.DataType
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: geminiModel });
 
 async function generateLucasExcuse() {
   try {

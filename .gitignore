@@ -4,3 +4,4 @@ config.json
 config/googleCredentials.json
 userMemories.json
 images/
+bootjaf/

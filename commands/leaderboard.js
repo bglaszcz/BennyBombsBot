@@ -1,7 +1,28 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { Sequelize, Op } = require('sequelize');
+const { Sequelize } = require('sequelize');
 const sequelize = require('../db.js');
 const User = require('../models/User')(sequelize, Sequelize.DataTypes);
+const fs = require('fs');
+const path = require('path');
+
+// Helper to get nickname from userMemories by either username or userId
+function getNickname(username, odrive) {
+  try {
+    const memoriesPath = path.join(__dirname, '..', 'userMemories.json');
+    if (fs.existsSync(memoriesPath)) {
+      const memories = JSON.parse(fs.readFileSync(memoriesPath, 'utf8'));
+      // Find user by username and return nickname if exists
+      for (const odrive in memories) {
+        if (memories[odrive].username === username && memories[odrive].nickname) {
+          return memories[odrive].nickname;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error loading nicknames:', err);
+  }
+  return username;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -10,18 +31,22 @@ module.exports = {
   async execute(interaction) {
     try {
       const leaderboard = await User.findAll({
-        order: [['level', 'DESC'], ['xp', 'DESC']], // Order by level DESC, then by xp DESC
+        order: [['level', 'DESC'], ['xp', 'DESC']],
         limit: 15,
       });
 
       const leaderboardRows = leaderboard.map((user, index) => {
-        return `${index + 1}. **${user.username}** (Level ${user.level}) - XP: ${user.xp}`;
+        const displayName = getNickname(user.username, user.userId);
+        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+        return `${medal} **${displayName}** (Level ${user.level}) - XP: ${user.xp}`;
       });
 
       const leaderboardEmbed = {
         color: 0x0099ff,
-        title: 'XP Leaderboard',
+        title: '🏆 XP Leaderboard',
         description: leaderboardRows.join('\n'),
+        footer: { text: 'Keep chatting to climb the ranks!' },
+        timestamp: new Date(),
       };
 
       await interaction.reply({ embeds: [leaderboardEmbed] });
