@@ -1,16 +1,16 @@
 const { DataTypes } = require('sequelize');
-// const dayjs = require('dayjs');
 const { Events } = require('discord.js');
 
 const sequelize = require('../db.js');
 const User = require('../models/User.js')(sequelize, DataTypes);
 
-const XP_PER_MESSAGE = 15;
-const MIN_XP = 15;
-const MAX_XP = 25;
-const COOLDOWN = 60000;
+// XP reward configuration
+const MIN_XP = 15; // Minimum XP per message
+const MAX_XP = 25; // Maximum XP per message
+const COOLDOWN_MS = 60 * 1000; // 1 minute cooldown between XP gains
 
-const TARGET_GUILD_ID = '771095355077033994'; // Replace with your target guild ID
+// Guild configuration (should match config.json guildId)
+const TARGET_GUILD_ID = '771095355077033994';
 
 module.exports = {
   name: Events.MessageCreate,
@@ -31,14 +31,17 @@ module.exports = {
 
       const currentTime = Date.now();
 
-      if (user.lastMessageTime && currentTime - user.lastMessageTime < COOLDOWN) {
+      // Check cooldown before awarding XP
+      if (user.lastMessageTime && currentTime - user.lastMessageTime < COOLDOWN_MS) {
         return;
       }
 
+      // Award random XP between MIN_XP and MAX_XP
       const earnedXP = Math.floor(Math.random() * (MAX_XP - MIN_XP + 1)) + MIN_XP;
       user.xp += earnedXP;
       user.lastMessageTime = currentTime;
 
+      // Level up threshold calculation: 100 * level^2
       const levelThreshold = 100 * user.level * user.level;
       if (user.xp >= levelThreshold) {
         user.level += 1;

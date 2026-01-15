@@ -7,7 +7,15 @@ const MEMORY_FILE = path.join(__dirname, 'userMemories.json');
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const memoryModel = genAI.getGenerativeModel({ model: geminiModel });
 
-// Load memories from file
+// Debounced save configuration
+const SAVE_DEBOUNCE_MS = 5000; // 5 seconds - batch writes for efficiency
+let saveTimeout = null;
+let pendingSave = false;
+
+/**
+ * Load memories from file system
+ * @returns {Object} User memories object indexed by userId
+ */
 function loadMemories() {
   try {
     if (fs.existsSync(MEMORY_FILE)) {
@@ -20,18 +28,69 @@ function loadMemories() {
   return {};
 }
 
-// Save memories to file
-function saveMemories(memories) {
+/**
+ * Save memories to file with debouncing to reduce I/O operations
+ * Batches multiple save requests within 5 seconds into a single write
+ * @param {Object} memories - Memories object to save
+ * @param {boolean} immediate - Force immediate save (bypass debouncing)
+ */
+function saveMemories(memories, immediate = false) {
+  pendingSave = true;
+
+  // Clear existing timeout
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+
+  // Force immediate save if requested (e.g., on shutdown)
+  if (immediate) {
+    performSave(memories);
+    return;
+  }
+
+  // Debounce: delay save to batch multiple operations
+  saveTimeout = setTimeout(() => {
+    performSave(memories);
+  }, SAVE_DEBOUNCE_MS);
+}
+
+/**
+ * Actually perform the file write operation
+ * @param {Object} memories - Memories object to write
+ */
+function performSave(memories) {
   try {
     fs.writeFileSync(MEMORY_FILE, JSON.stringify(memories, null, 2));
+    pendingSave = false;
+    saveTimeout = null;
   } catch (error) {
     console.error('Error saving memories:', error);
   }
 }
 
+// Ensure pending saves are flushed on process exit
+process.on('exit', () => {
+  if (pendingSave) {
+    performSave(memories);
+  }
+});
+
+process.on('SIGINT', () => {
+  if (pendingSave) {
+    performSave(memories);
+  }
+  process.exit();
+});
+
 let memories = loadMemories();
 
-// Get or create user memory
+/**
+ * Get or create user memory object
+ * Creates a new memory structure if user doesn't exist
+ *
+ * @param {string} userId - Discord user ID
+ * @returns {Object} User memory object with all tracked data
+ */
 function getUserMemory(userId) {
   if (!memories[userId]) {
     memories[userId] = {
@@ -51,30 +110,42 @@ function getUserMemory(userId) {
   return memories[userId];
 }
 
-// Update last seen
+/**
+ * Update user's last seen timestamp and message count
+ * Also sets nickname to username if not already set
+ *
+ * @param {string} userId - Discord user ID
+ * @param {string} username - Current Discord username
+ */
 function updateLastSeen(userId, username) {
   const memory = getUserMemory(userId);
   memory.username = username;
-  
+
   // Set nickname to username if not already set
   if (!memory.nickname) {
     memory.nickname = username;
   }
-  
+
   memory.lastSeen = new Date().toISOString();
   memory.messageCount++;
   saveMemories(memories);
 }
 
-// Add fact with timestamp
+/**
+ * Add a fact to user's memory (with deduplication)
+ * Updates lastReferenced timestamp if fact already exists
+ *
+ * @param {string} userId - Discord user ID
+ * @param {string} fact - Fact text to add
+ */
 function addFact(userId, fact) {
   const memory = getUserMemory(userId);
-  
+
   // Check if fact already exists (compare the text content)
-  const existingFact = memory.facts.find(f => 
+  const existingFact = memory.facts.find(f =>
     (typeof f === 'string' ? f : f.text) === fact
   );
-  
+
   if (!existingFact) {
     memory.facts.push({
       text: fact,
@@ -90,7 +161,14 @@ function addFact(userId, fact) {
   }
 }
 
-// Add preference with timestamp
+/**
+ * Add or update a user preference
+ * Overwrites existing preference in the same category
+ *
+ * @param {string} userId - Discord user ID
+ * @param {string} category - Preference category (e.g., "music", "food")
+ * @param {string} value - Preference value
+ */
 function addPreference(userId, category, value) {
   const memory = getUserMemory(userId);
   memory.preferences[category] = {
@@ -102,15 +180,21 @@ function addPreference(userId, category, value) {
   console.log(`❤️ New preference for ${memory.username}: ${category} = ${value}`);
 }
 
-// Add inside joke with timestamp
+/**
+ * Add an inside joke to user's memory (with deduplication)
+ * Updates lastReferenced timestamp if joke already exists
+ *
+ * @param {string} userId - Discord user ID
+ * @param {string} joke - Inside joke text to add
+ */
 function addInsideJoke(userId, joke) {
   const memory = getUserMemory(userId);
-  
+
   // Check if joke already exists (compare the text content)
-  const existingJoke = memory.insideJokes.find(j => 
+  const existingJoke = memory.insideJokes.find(j =>
     (typeof j === 'string' ? j : j.text) === joke
   );
-  
+
   if (!existingJoke) {
     memory.insideJokes.push({
       text: joke,
@@ -156,7 +240,17 @@ function updateRoastScore(userId, change) {
   }
 }
 
-// AI-powered memory analysis
+/**
+ * AI-powered memory analysis of conversation
+ * Analyzes user messages and bot responses to extract memorable information
+ * Runs asynchronously in background to avoid blocking responses
+ *
+ * @param {string} userId - Discord user ID
+ * @param {string} username - User's display name
+ * @param {string} userMessage - The user's message
+ * @param {string} botResponse - The bot's response
+ * @returns {Promise<void>}
+ */
 async function analyzeForMemories(userId, username, userMessage, botResponse) {
   try {
     const analysisPrompt = `Analyze this Discord conversation and extract any memorable information about the user.
@@ -241,7 +335,13 @@ IMPORTANT RULES:
   }
 }
 
-// Format memory for prompt context
+/**
+ * Format user memory for inclusion in AI prompt
+ * WARNING: Side effect - updates lastReferenced timestamps for included items
+ *
+ * @param {string} userId - Discord user ID
+ * @returns {string} Formatted memory context for prompt
+ */
 function formatMemoryForPrompt(userId) {
   const memory = getUserMemory(userId);
   const displayName = memory.nickname || memory.username;
@@ -350,7 +450,13 @@ function checkAchievements(userId) {
   }
 }
 
-// Manually set a nickname for a user
+/**
+ * Manually set a nickname for a user
+ *
+ * @param {string} userId - Discord user ID
+ * @param {string} nickname - Desired nickname
+ * @returns {Object} Updated memory object
+ */
 function setNickname(userId, nickname) {
   const memory = getUserMemory(userId);
   memory.nickname = nickname;
@@ -359,11 +465,22 @@ function setNickname(userId, nickname) {
   return memory;
 }
 
-// Clean old memories based on age and usage
+/**
+ * Clean old memories based on age
+ * Removes facts older than 30 days, preferences older than 30 days,
+ * and inside jokes older than 14 days. Also enforces maximum limits.
+ *
+ * @param {string} userId - Discord user ID
+ * @returns {boolean} True if any cleanup was performed
+ */
 function cleanOldMemories(userId) {
   const memory = getUserMemory(userId);
   const now = Date.now();
+
+  // Age thresholds
   const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
+  // Maximum item limits
   const MAX_FACTS = 10;
   const MAX_PREFERENCES = 8;
   const MAX_INSIDE_JOKES = 5;
@@ -406,19 +523,18 @@ function cleanOldMemories(userId) {
     }
   });
 
-  // Remove facts older than 30 days that haven't been referenced recently
+  // Remove facts older than 30 days based on when they were added
   const oldFactCount = memory.facts.length;
   memory.facts = memory.facts.filter(fact => {
     const age = now - new Date(fact.addedOn).getTime();
-    const timeSinceReference = now - new Date(fact.lastReferenced).getTime();
-    // Keep if less than 30 days old OR referenced in last 14 days
-    return age < THIRTY_DAYS || timeSinceReference < (14 * 24 * 60 * 60 * 1000);
+    // Keep only if less than 30 days old
+    return age < THIRTY_DAYS;
   });
 
-  // If still too many facts, keep only the most recently referenced
+  // If still too many facts, keep only the most recently added
   if (memory.facts.length > MAX_FACTS) {
-    memory.facts.sort((a, b) => 
-      new Date(b.lastReferenced).getTime() - new Date(a.lastReferenced).getTime()
+    memory.facts.sort((a, b) =>
+      new Date(b.addedOn).getTime() - new Date(a.addedOn).getTime()
     );
     memory.facts = memory.facts.slice(0, MAX_FACTS);
   }
@@ -428,26 +544,25 @@ function cleanOldMemories(userId) {
     console.log(`🧹 Cleaned ${oldFactCount - memory.facts.length} old facts for ${memory.username}`);
   }
 
-  // Remove old preferences (older than 30 days and not recently referenced)
+  // Remove old preferences (older than 30 days based on when they were added)
   const oldPrefCount = Object.keys(memory.preferences).length;
   Object.keys(memory.preferences).forEach(key => {
     const pref = memory.preferences[key];
     const age = now - new Date(pref.addedOn).getTime();
-    const timeSinceReference = now - new Date(pref.lastReferenced).getTime();
-    
-    if (age >= THIRTY_DAYS && timeSinceReference >= (14 * 24 * 60 * 60 * 1000)) {
+
+    if (age >= THIRTY_DAYS) {
       delete memory.preferences[key];
     }
   });
 
-  // If still too many preferences, keep most recently referenced
+  // If still too many preferences, keep most recently added
   if (Object.keys(memory.preferences).length > MAX_PREFERENCES) {
     const sortedPrefs = Object.entries(memory.preferences)
-      .sort((a, b) => 
-        new Date(b[1].lastReferenced).getTime() - new Date(a[1].lastReferenced).getTime()
+      .sort((a, b) =>
+        new Date(b[1].addedOn).getTime() - new Date(a[1].addedOn).getTime()
       )
       .slice(0, MAX_PREFERENCES);
-    
+
     memory.preferences = Object.fromEntries(sortedPrefs);
   }
 
@@ -456,19 +571,18 @@ function cleanOldMemories(userId) {
     console.log(`🧹 Cleaned ${oldPrefCount - Object.keys(memory.preferences).length} old preferences for ${memory.username}`);
   }
 
-  // Remove old inside jokes (they get stale faster - 14 days)
+  // Remove old inside jokes (they get stale faster - 14 days based on when they were added)
   const oldJokeCount = memory.insideJokes.length;
   memory.insideJokes = memory.insideJokes.filter(joke => {
     const age = now - new Date(joke.addedOn).getTime();
-    const timeSinceReference = now - new Date(joke.lastReferenced).getTime();
-    // Keep if less than 14 days old OR referenced in last 7 days
-    return age < (14 * 24 * 60 * 60 * 1000) || timeSinceReference < (7 * 24 * 60 * 60 * 1000);
+    // Keep only if less than 14 days old
+    return age < (14 * 24 * 60 * 60 * 1000);
   });
 
-  // Keep only most recent inside jokes
+  // Keep only most recent inside jokes by when they were added
   if (memory.insideJokes.length > MAX_INSIDE_JOKES) {
-    memory.insideJokes.sort((a, b) => 
-      new Date(b.lastReferenced).getTime() - new Date(a.lastReferenced).getTime()
+    memory.insideJokes.sort((a, b) =>
+      new Date(b.addedOn).getTime() - new Date(a.addedOn).getTime()
     );
     memory.insideJokes = memory.insideJokes.slice(0, MAX_INSIDE_JOKES);
   }

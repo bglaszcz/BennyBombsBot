@@ -2,27 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { Sequelize } = require('sequelize');
 const sequelize = require('../db.js');
 const User = require('../models/User')(sequelize, Sequelize.DataTypes);
-const fs = require('fs');
-const path = require('path');
-
-// Helper to get nickname from userMemories by either username or userId
-function getNickname(username, odrive) {
-  try {
-    const memoriesPath = path.join(__dirname, '..', 'userMemories.json');
-    if (fs.existsSync(memoriesPath)) {
-      const memories = JSON.parse(fs.readFileSync(memoriesPath, 'utf8'));
-      // Find user by username and return nickname if exists
-      for (const odrive in memories) {
-        if (memories[odrive].username === username && memories[odrive].nickname) {
-          return memories[odrive].nickname;
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Error loading nicknames:', err);
-  }
-  return username;
-}
+const { getNickname } = require('../utils/getNickname');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -36,7 +16,7 @@ module.exports = {
       });
 
       const leaderboardRows = leaderboard.map((user, index) => {
-        const displayName = getNickname(user.username, user.userId);
+        const displayName = getNickname(user.userId, user.username);
         const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
         return `${medal} **${displayName}** (Level ${user.level}) - XP: ${user.xp}`;
       });

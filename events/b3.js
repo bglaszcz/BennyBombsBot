@@ -7,13 +7,29 @@ const userMemory = require('../userMemory');
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: geminiModel });
 
-const MAX_MESSAGE_LENGTH = 2000;
-const MAX_CONTEXT_MESSAGES = 5;
-const CONVERSATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
-const TYPING_INTERVAL = 5000; // 5 seconds typing indicator refresh
+// Configuration constants
+const MAX_MESSAGE_LENGTH = 2000; // Discord's message length limit
+const MAX_CONTEXT_MESSAGES = 5; // Number of previous messages to include in context
+const CONVERSATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes - conversations expire after this
+const TYPING_INTERVAL = 5000; // 5 seconds - refresh typing indicator
+const CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes - periodic cleanup of expired conversations
 
 // Store conversation history with better structure
 const conversations = new Map();
+
+// Periodic cleanup to prevent memory leaks from inactive channels
+setInterval(() => {
+  let cleanedCount = 0;
+  for (const [channelId, conv] of conversations.entries()) {
+    if (conv.isExpired()) {
+      conversations.delete(channelId);
+      cleanedCount++;
+    }
+  }
+  if (cleanedCount > 0) {
+    console.log(`🧹 Cleaned up ${cleanedCount} expired conversation(s)`);
+  }
+}, CLEANUP_INTERVAL);
 
 class Conversation {
   constructor() {
@@ -75,17 +91,22 @@ module.exports = {
 
     const channelId = message.channel.id;
     const userId = message.author.id;
-    
+
     try {
+      // Get user memory ONCE and reuse throughout request (performance optimization)
+      const memory = userMemory.getUserMemory(userId);
+
       // Update user memory - last seen and message count
       userMemory.updateLastSeen(userId, message.author.username);
       userMemory.checkAchievements(userId);
 
       // Clean old memories every 10 messages to keep things fresh
-      const memory = userMemory.getUserMemory(userId);
       if (memory.messageCount % 10 === 0) {
         userMemory.cleanOldMemories(userId);
       }
+
+      // Get the user's nickname for consistent usage
+      const userNickname = memory.nickname || message.author.username;
 
       // Maintain typing indicator
       const maintainTyping = async () => {
@@ -113,13 +134,13 @@ module.exports = {
         .replace(new RegExp(`<@!?${botId}>`, 'g'), '')
         .trim();
 
-      // Add message to conversation WITH USERNAME AND USER ID
-      conversation.addMessage('user', userMessage, message.author.username, userId);
+      // Add message to conversation WITH NICKNAME AND USER ID
+      conversation.addMessage('user', userMessage, userNickname, userId);
 
       // Prepare prompt with conversation context AND MEMORY
       const context = conversation.getContext();
       const memoryContext = userMemory.formatMemoryForPrompt(userId);
-      const prompt = formatPrompt(context, message, memoryContext);
+      const prompt = formatPrompt(context, message, memoryContext, userNickname);
 
       // Generate response with retries
       let response;
@@ -129,7 +150,7 @@ module.exports = {
         console.error('Generation error:', error);
         // If safety filter triggered, try with fallback prompt
         if (error.message?.includes('SAFETY')) {
-          const fallbackPrompt = formatFallbackPrompt(context, message);
+          const fallbackPrompt = formatFallbackPrompt(context, message, userNickname);
           response = await generateSafeResponse(model, fallbackPrompt);
         } else {
           throw error; // Re-throw other errors
@@ -141,7 +162,7 @@ module.exports = {
 
       // ANALYZE CONVERSATION FOR MEMORIES (runs in background using AI)
       // This automatically extracts facts, preferences, inside jokes, and roast context
-      userMemory.analyzeForMemories(userId, message.author.username, userMessage, response)
+      userMemory.analyzeForMemories(userId, userNickname, userMessage, response)
         .catch(err => console.error('Background memory analysis failed:', err));
 
       // Add bot's response to conversation history
@@ -167,7 +188,7 @@ module.exports = {
   },
 };
 
-function formatPrompt(context, message, memoryContext) {
+function formatPrompt(context, message, memoryContext, userNickname) {
   const systemPrompt = `
   Your personality:
 - Drop creative roasts and witty comebacks
@@ -184,7 +205,7 @@ Style guide:
 - Be quick-witted and a bit cocky
 - Read the room - match users' energy
 - If someone's genuinely upset, drop the attitude and be cool
-- Reference users by their username when it makes sense
+- Reference users by their nickname when it makes sense
 - Use your memory of users to make conversations more personal and engaging
 - Occasionally reference things you remember about them naturally
 - NEVER mention achievements, message counts, or stats unless the user specifically asks
@@ -193,7 +214,7 @@ Style guide:
 Current context:
 - Server: ${message.guild?.name || 'DM'}
 - Channel: ${message.channel.name || 'DM'}
-- Current user: ${message.author.username}
+- Current user: ${userNickname}
 
 Memory about this user:
 ${memoryContext}
@@ -213,12 +234,12 @@ Previous conversation:`;
   return `${systemPrompt}\n\n${contextMessages}`;
 }
 
-function formatFallbackPrompt(context, message) {
+function formatFallbackPrompt(context, message, userNickname) {
   const systemPrompt = `You are a helpful Discord chat assistant. Please respond to the conversation in a friendly and appropriate way, focusing on being helpful and clear.
 
 Current context:
 - Server: ${message.guild?.name || 'DM'}
-- Current user: ${message.author.username}
+- Current user: ${userNickname}
 
 Previous conversation:`;
 

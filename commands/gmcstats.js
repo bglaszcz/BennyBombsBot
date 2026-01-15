@@ -2,16 +2,23 @@ const { SlashCommandBuilder } = require('discord.js');
 const { Sequelize } = require('sequelize');
 const sequelize = require('../db.js');
 const GMCMessage = require('../models/GMCMessage.js')(sequelize, Sequelize.DataTypes);
-const fs = require('fs');
-const path = require('path');
+const { getNickname } = require('../utils/getNickname');
 
-// Helper to get nickname from userMemories
-function getNickname(username) {
+/**
+ * Helper function to get nickname by username (backwards compat)
+ * Note: This is less efficient than using userId directly
+ * @param {string} username - Discord username
+ * @returns {string} Nickname or original username
+ */
+function getNicknameByUsername(username) {
+  // This function is kept for backwards compatibility with database records
+  // that only store usernames. Ideally, future code should store userId.
   try {
+    const fs = require('fs');
+    const path = require('path');
     const memoriesPath = path.join(__dirname, '..', 'userMemories.json');
     if (fs.existsSync(memoriesPath)) {
       const memories = JSON.parse(fs.readFileSync(memoriesPath, 'utf8'));
-      // Find user by username and return nickname if exists
       for (const userId in memories) {
         if (memories[userId].username === username && memories[userId].nickname) {
           return memories[userId].nickname;
@@ -59,7 +66,7 @@ module.exports = {
       // Combine the results to generate per-user statistics
       const userStatistics = userTriggerCounts.map((userCount) => {
         const userTime = userTimestamps.find((time) => time.username === userCount.username);
-        const displayName = getNickname(userCount.username);
+        const displayName = getNicknameByUsername(userCount.username);
         return {
           displayName,
           triggerCount: userCount.dataValues.triggerCount,

@@ -1,27 +1,10 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, geminiModel } = require('../config.json');
-const fs = require('fs');
-const path = require('path');
+const { geminiApiKey, geminiModel, botId } = require('../config.json');
+const { getNickname } = require('../utils/getNickname');
 
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: geminiModel });
-
-// Load userMemories to get nicknames
-function getUserNickname(userId, username) {
-  try {
-    const memoriesPath = path.join(__dirname, '..', 'userMemories.json');
-    if (fs.existsSync(memoriesPath)) {
-      const memories = JSON.parse(fs.readFileSync(memoriesPath, 'utf8'));
-      if (memories[userId] && memories[userId].nickname) {
-        return memories[userId].nickname;
-      }
-    }
-  } catch (err) {
-    console.error('Error loading userMemories for nickname:', err);
-  }
-  return username; // fallback to Discord username
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -47,20 +30,20 @@ module.exports = {
         limit: Math.min(messageCount, 100) 
       });
 
-      // Filter out bot commands and format for AI
+      // Filter out bot commands and bot messages
       const relevantMessages = Array.from(messages.values())
         .reverse()
-        .filter(msg => !msg.content.startsWith('/'))
+        .filter(msg => !msg.content.startsWith('/') && msg.author.id !== botId)
         .slice(0, messageCount);
 
       if (relevantMessages.length === 0) {
         return interaction.editReply("No messages to summarize! Y'all been quiet 👀");
       }
 
-      // Format conversation using nicknames from userMemories
+      // Format conversation using nicknames from userMemories (with caching)
       const conversationText = relevantMessages
         .map(msg => {
-          const displayName = getUserNickname(msg.author.id, msg.author.username);
+          const displayName = getNickname(msg.author.id, msg.author.username);
           return `${displayName}: ${msg.content}`;
         })
         .join('\n');

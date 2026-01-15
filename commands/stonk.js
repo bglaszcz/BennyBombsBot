@@ -1,6 +1,11 @@
 const yahooFinance = require(`yahoo-finance2`).default;
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
+// Market hours configuration (24-hour format, EST/EDT)
+const PRE_MARKET_END_HOUR = 8;
+const PRE_MARKET_END_MINUTE = 30;
+const AFTER_HOURS_START = 14; // 2 PM EST/EDT (market closes at 4 PM, this might be 16)
+
 module.exports = {
 	data: new SlashCommandBuilder()
         .setName(`stonk`)
@@ -23,7 +28,8 @@ module.exports = {
         const volume = result.price.regularMarketVolume.toLocaleString("en-US");
         const volume_avg = result.summaryDetail.averageVolume.toLocaleString("en-US");
 
-        if (date_ob <= 8 && minutes < 30 && company) {
+        // Pre-market pricing (before 8:30 AM)
+        if (date_ob <= PRE_MARKET_END_HOUR && minutes < PRE_MARKET_END_MINUTE && company) {
             const exampleEmbed = new EmbedBuilder()
                 .setColor("#FFAE42")
                 .setURL(tickerUrl)
@@ -37,7 +43,8 @@ module.exports = {
                 );
             interaction.reply({ embeds: [exampleEmbed] });
         }
-        else if (date_ob > 14 && company) {
+        // After-hours pricing (after market close)
+        else if (date_ob > AFTER_HOURS_START && company) {
             const exampleEmbed = new EmbedBuilder()
                 .setColor("#FF5349")
                 .setURL(tickerUrl)
