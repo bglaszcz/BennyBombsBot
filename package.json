@@ -21,7 +21,6 @@
     "cheerio": "*",
     "coinmarketcap-api": "^3.1.1",
     "dayjs": "^1.11.5",
-    "discord-slash-commands-client": "^1.2.2",
     "discord.js": "^14.11.0",
     "dotenv": "^8.6.0",
     "google-auth-library": "^9.14.2",
@@ -29,10 +28,9 @@
     "openai": "^4.6.0",
     "pg": "^8.8.0",
     "pg-hstore": "^2.3.4",
-    "request": "^2.88.2",
     "sequelize": "^6.28.0",
     "sqlite3": "^5.1.4",
-    "yahoo-finance2": "^2.3.4"
+    "yahoo-finance2": "^3.11.2"
   },
   "devDependencies": {
     "eslint": "^8.31.0"

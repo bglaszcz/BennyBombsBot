@@ -1,4 +1,5 @@
-const yahooFinance = require(`yahoo-finance2`).default;
+const YahooFinance = require('yahoo-finance2').default;
+const yahooFinance = new YahooFinance();
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 // Market hours configuration (24-hour format, EST/EDT)

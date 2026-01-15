@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 const { SlashCommandBuilder } = require('discord.js');
-const { tenorApiKey } = require('../config.json');
+const { GIPHYApiKey } = require('../config.json');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,22 +13,22 @@ module.exports = {
   async execute(interaction) {
     const keywords = interaction.options.getString('gif_search');
 
-    const encodedKeywords = encodeURIComponent(keywords); // Use encodeURIComponent instead of encodeURI for query parameters
-    const url = `https://g.tenor.com/v1/search?q=${encodedKeywords}&key=${tenorApiKey}&limit=7`;
+    const encodedKeywords = encodeURIComponent(keywords);
+    const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHYApiKey}&q=${encodedKeywords}&limit=10&rating=r`;
 
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error('Failed to fetch GIFs from Tenor');
+        throw new Error('Failed to fetch GIFs from Giphy');
       }
 
       const json = await response.json();
 
-      if (json.results.length === 0) {
+      if (json.data.length === 0) {
         interaction.reply(`No GIFs were found for "${keywords}".`);
       } else {
-        const index = Math.floor(Math.random() * json.results.length);
-        interaction.reply(json.results[index].url);
+        const index = Math.floor(Math.random() * json.data.length);
+        interaction.reply(json.data[index].url);
       }
     } catch (err) {
       console.error(err);

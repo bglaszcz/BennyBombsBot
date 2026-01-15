@@ -23,12 +23,14 @@ try {
     // Load your existing models
     const GMCMessage = require('./models/GMCMessage')(sequelize, Sequelize.DataTypes);
     const GACMessage = require('./models/GACMessage')(sequelize, Sequelize.DataTypes);
-    
-    // Sync all models (this creates the tables if they don't exist)
-    sequelize.sync()
+    const User = require('./models/User')(sequelize, Sequelize.DataTypes);
+    const LevelUpMessage = require('./models/LevelUpMessage')(sequelize, Sequelize.DataTypes);
+
+    // Sync all models (alter: true adds new columns to existing tables)
+    sequelize.sync({ alter: true })
         .then(() => console.log('Database models synchronized successfully.'))
         .catch(error => console.error('Failed to sync database models:', error));
-        
+
 } catch (error) {
     console.error('Error initializing database models:', error);
 }

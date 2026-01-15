@@ -1,5 +1,6 @@
 node_modules
 .env
+CLAUDE.md
 config.json
 config/googleCredentials.json
 userMemories.json

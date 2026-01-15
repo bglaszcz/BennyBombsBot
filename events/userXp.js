@@ -3,6 +3,7 @@ const { Events } = require('discord.js');
 
 const sequelize = require('../db.js');
 const User = require('../models/User.js')(sequelize, DataTypes);
+const LevelUpMessage = require('../models/LevelUpMessage.js')(sequelize, DataTypes);
 
 // XP reward configuration
 const MIN_XP = 15; // Minimum XP per message
@@ -46,6 +47,17 @@ module.exports = {
       if (user.xp >= levelThreshold) {
         user.level += 1;
         user.xp = 0;
+
+        // Store the message that triggered the level-up
+        await LevelUpMessage.create({
+          userId: message.author.id,
+          username: message.author.username,
+          level: user.level,
+          messageContent: message.content,
+          messageId: message.id,
+          channelId: message.channel.id,
+          timestamp: message.createdTimestamp,
+        });
         const levelUpMessages = [
           `💎 Shine bright like a diamond! ${message.author.username} just got polished by Manager Lucas and sparkled up to level ${user.level}! ✨`,
           `🔧🔷 Lucas must be a master jeweler! ${message.author.username} just got upgraded to level ${user.level}, thanks to all that polishing! 💪`,
