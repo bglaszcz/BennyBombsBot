@@ -7,9 +7,9 @@ module.exports = {
 		.setDescription('Pick a random son gif from local files'),
 	async execute(interaction) {
 		const filePaths = [
-			'C:\\Users\\Server\\Documents\\BennyBombsBot\\images\\supeson\\Lson.png',
-			'C:\\Users\\Server\\Documents\\BennyBombsBot\\images\\supeson\\covidson.png',
-			'C:\\Users\\Server\\Documents\\BennyBombsBot\\images\\supeson\\2019-04-27.gif',
+			'C:\\Users\\Server\\Documents\\BennyBombsBot\\assets\\images\\supeson\\Lson.png',
+			'C:\\Users\\Server\\Documents\\BennyBombsBot\\assets\\images\\supeson\\covidson.png',
+			'C:\\Users\\Server\\Documents\\BennyBombsBot\\assets\\images\\supeson\\2019-04-27.gif',
 		];
 
 		const randomIndex = Math.floor(Math.random() * filePaths.length);

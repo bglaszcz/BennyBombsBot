@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const fetch = require('node-fetch');
 // Define the Tenor API key
-const { tenorApiKey } = require('../config.json');
+const { tenorApiKey } = require('../../config.json');
 
 // Define an array to keep track of users using the /slot command
 let slotUsers = [null, null, null, null]; // Initialize with 4 null slots

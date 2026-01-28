@@ -6,7 +6,7 @@ module.exports = {
         .setDescription(`Show jaf fun chart`),
     execute(interaction) {
 
-        const images = `./images/jafchart/image1.png`;
+        const images = `./assets/images/jafchart/image1.png`;
 
         try {
             interaction.reply({ files: [images] });

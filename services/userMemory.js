@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, geminiModel } = require('./config.json');
+const { geminiApiKey, geminiModel } = require('../config.json');
 
-const MEMORY_FILE = path.join(__dirname, 'userMemories.json');
+const MEMORY_FILE = path.join(__dirname, '..', 'userMemories.json');
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const memoryModel = genAI.getGenerativeModel({ model: geminiModel });
 
@@ -466,9 +466,9 @@ function setNickname(userId, nickname) {
 }
 
 /**
- * Clean old memories based on age
- * Removes facts older than 30 days, preferences older than 30 days,
- * and inside jokes older than 14 days. Also enforces maximum limits.
+ * Clean old memories based on lastReferenced date
+ * Removes facts not referenced in 30 days, preferences not referenced in 30 days,
+ * and inside jokes not referenced in 14 days. Also enforces maximum limits.
  *
  * @param {string} userId - Discord user ID
  * @returns {boolean} True if any cleanup was performed
@@ -477,23 +477,26 @@ function cleanOldMemories(userId) {
   const memory = getUserMemory(userId);
   const now = Date.now();
 
-  // Age thresholds
+  // Age thresholds (based on lastReferenced, not addedOn)
   const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const FOURTEEN_DAYS = 14 * 24 * 60 * 60 * 1000;
 
   // Maximum item limits
   const MAX_FACTS = 10;
   const MAX_PREFERENCES = 8;
   const MAX_INSIDE_JOKES = 5;
-  
+
   let cleaned = false;
 
-  // Migrate old string-based facts to new format
+  // Migrate old string-based facts to new format (preserve old date as fallback)
   memory.facts = memory.facts.map(f => {
     if (typeof f === 'string') {
+      // Use memory.firstSeen as fallback for legacy items
+      const fallbackDate = memory.firstSeen || new Date().toISOString();
       return {
         text: f,
-        addedOn: new Date().toISOString(),
-        lastReferenced: new Date().toISOString()
+        addedOn: fallbackDate,
+        lastReferenced: fallbackDate
       };
     }
     return f;
@@ -502,10 +505,11 @@ function cleanOldMemories(userId) {
   // Migrate old string-based inside jokes
   memory.insideJokes = memory.insideJokes.map(j => {
     if (typeof j === 'string') {
+      const fallbackDate = memory.firstSeen || new Date().toISOString();
       return {
         text: j,
-        addedOn: new Date().toISOString(),
-        lastReferenced: new Date().toISOString()
+        addedOn: fallbackDate,
+        lastReferenced: fallbackDate
       };
     }
     return j;
@@ -515,51 +519,53 @@ function cleanOldMemories(userId) {
   Object.keys(memory.preferences).forEach(key => {
     const pref = memory.preferences[key];
     if (typeof pref === 'string') {
+      const fallbackDate = memory.firstSeen || new Date().toISOString();
       memory.preferences[key] = {
         value: pref,
-        addedOn: new Date().toISOString(),
-        lastReferenced: new Date().toISOString()
+        addedOn: fallbackDate,
+        lastReferenced: fallbackDate
       };
     }
   });
 
-  // Remove facts older than 30 days based on when they were added
+  // Remove facts not referenced in 30 days
   const oldFactCount = memory.facts.length;
   memory.facts = memory.facts.filter(fact => {
-    const age = now - new Date(fact.addedOn).getTime();
-    // Keep only if less than 30 days old
+    const lastRef = new Date(fact.lastReferenced).getTime();
+    const age = now - lastRef;
     return age < THIRTY_DAYS;
   });
 
-  // If still too many facts, keep only the most recently added
+  // If still too many facts, keep only the most recently referenced
   if (memory.facts.length > MAX_FACTS) {
     memory.facts.sort((a, b) =>
-      new Date(b.addedOn).getTime() - new Date(a.addedOn).getTime()
+      new Date(b.lastReferenced).getTime() - new Date(a.lastReferenced).getTime()
     );
     memory.facts = memory.facts.slice(0, MAX_FACTS);
   }
 
   if (oldFactCount !== memory.facts.length) {
     cleaned = true;
-    console.log(`🧹 Cleaned ${oldFactCount - memory.facts.length} old facts for ${memory.username}`);
+    console.log(`🧹 Cleaned ${oldFactCount - memory.facts.length} stale facts for ${memory.username}`);
   }
 
-  // Remove old preferences (older than 30 days based on when they were added)
+  // Remove preferences not referenced in 30 days
   const oldPrefCount = Object.keys(memory.preferences).length;
   Object.keys(memory.preferences).forEach(key => {
     const pref = memory.preferences[key];
-    const age = now - new Date(pref.addedOn).getTime();
+    const lastRef = new Date(pref.lastReferenced).getTime();
+    const age = now - lastRef;
 
     if (age >= THIRTY_DAYS) {
       delete memory.preferences[key];
     }
   });
 
-  // If still too many preferences, keep most recently added
+  // If still too many preferences, keep most recently referenced
   if (Object.keys(memory.preferences).length > MAX_PREFERENCES) {
     const sortedPrefs = Object.entries(memory.preferences)
       .sort((a, b) =>
-        new Date(b[1].addedOn).getTime() - new Date(a[1].addedOn).getTime()
+        new Date(b[1].lastReferenced).getTime() - new Date(a[1].lastReferenced).getTime()
       )
       .slice(0, MAX_PREFERENCES);
 
@@ -568,28 +574,28 @@ function cleanOldMemories(userId) {
 
   if (oldPrefCount !== Object.keys(memory.preferences).length) {
     cleaned = true;
-    console.log(`🧹 Cleaned ${oldPrefCount - Object.keys(memory.preferences).length} old preferences for ${memory.username}`);
+    console.log(`🧹 Cleaned ${oldPrefCount - Object.keys(memory.preferences).length} stale preferences for ${memory.username}`);
   }
 
-  // Remove old inside jokes (they get stale faster - 14 days based on when they were added)
+  // Remove inside jokes not referenced in 14 days (they get stale faster)
   const oldJokeCount = memory.insideJokes.length;
   memory.insideJokes = memory.insideJokes.filter(joke => {
-    const age = now - new Date(joke.addedOn).getTime();
-    // Keep only if less than 14 days old
-    return age < (14 * 24 * 60 * 60 * 1000);
+    const lastRef = new Date(joke.lastReferenced).getTime();
+    const age = now - lastRef;
+    return age < FOURTEEN_DAYS;
   });
 
-  // Keep only most recent inside jokes by when they were added
+  // Keep only most recently referenced inside jokes
   if (memory.insideJokes.length > MAX_INSIDE_JOKES) {
     memory.insideJokes.sort((a, b) =>
-      new Date(b.addedOn).getTime() - new Date(a.addedOn).getTime()
+      new Date(b.lastReferenced).getTime() - new Date(a.lastReferenced).getTime()
     );
     memory.insideJokes = memory.insideJokes.slice(0, MAX_INSIDE_JOKES);
   }
 
   if (oldJokeCount !== memory.insideJokes.length) {
     cleaned = true;
-    console.log(`🧹 Cleaned ${oldJokeCount - memory.insideJokes.length} old inside jokes for ${memory.username}`);
+    console.log(`🧹 Cleaned ${oldJokeCount - memory.insideJokes.length} stale inside jokes for ${memory.username}`);
   }
 
   if (cleaned) {

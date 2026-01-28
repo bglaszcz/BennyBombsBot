@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, geminiModel, botId } = require('../config.json');
-const { getNickname } = require('../utils/getNickname');
+const { geminiApiKey, geminiModel, botId } = require('../../config.json');
+const { getNickname } = require('../../utils/getNickname');
 
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: geminiModel });

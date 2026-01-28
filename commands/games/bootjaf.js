@@ -1,10 +1,10 @@
 const fetch = require('node-fetch');
 const { SlashCommandBuilder } = require('discord.js');
 const Sequelize = require('sequelize');
-const sequelize = require('../db.js');
-const { tenorApiKey } = require('../config.json');
+const sequelize = require('../../db.js');
+const { tenorApiKey } = require('../../config.json');
 
-const BootJaf = require('../models/BootJaf')(sequelize, Sequelize.DataTypes);
+const BootJaf = require('../../models/BootJaf')(sequelize, Sequelize.DataTypes);
 
 module.exports = {
 	data: new SlashCommandBuilder()

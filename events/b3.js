@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { geminiApiKey, botId, geminiModel } = require('../config.json');
-const userMemory = require('../userMemory');
+const userMemory = require('../services/userMemory');
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);

@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm audit:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(git mv:*)",
+      "Bash(while IFS= read -r f)",
+      "Bash(do sed -i \"s|require\\(''\\\\.\\\\./|require\\(''../../|g\" \"$f\")",
+      "Bash(done)"
     ]
   }
 }

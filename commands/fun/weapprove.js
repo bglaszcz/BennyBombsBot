@@ -6,7 +6,7 @@ module.exports = {
         .setDescription(`Your supes approve`),
     execute(interaction) {
 
-        const images = `./images/weapprove/image0.jpeg`;
+        const images = `./assets/images/weapprove/image0.jpeg`;
 
         try {
             interaction.reply({ files: [images] });

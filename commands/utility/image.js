@@ -1,10 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const OpenAI = require('openai'); // Use the correct constructor
-const { chatGptKey } = require('../config.json');
+const { chatGptKey } = require('../../config.json');
 const Sequelize = require('sequelize');
-const sequelize = require('../db.js');
+const sequelize = require('../../db.js');
 
-const OpenAIAPIUsage = require('../models/OpenAIAPIUsage')(sequelize, Sequelize.DataTypes);
+const OpenAIAPIUsage = require('../../models/OpenAIAPIUsage')(sequelize, Sequelize.DataTypes);
 
 const openai = new OpenAI({
   apiKey: chatGptKey,

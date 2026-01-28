@@ -10,19 +10,19 @@ module.exports = {
         const dayData = {
             "Monday": {
                 response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./images/FridayThen/Monday-FridayThen.png"
+                image: "./assets/images/FridayThen/Monday-FridayThen.png"
             },
             "Tuesday": {
                 response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./images/FridayThen/Tuesday-FridayThen.png"
+                image: "./assets/images/FridayThen/Tuesday-FridayThen.png"
             },
             "Wednesday": {
                 response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./images/FridayThen/Wednesday-FridayThen.png"
+                image: "./assets/images/FridayThen/Wednesday-FridayThen.png"
             },
             "Thursday": {
                 response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./images/FridayThen/Thursday-FridayThen.png"
+                image: "./assets/images/FridayThen/Thursday-FridayThen.png"
             },
             "Friday": {
                 response: "https://www.youtube.com/watch?v=1AnG04qnLqI%27",

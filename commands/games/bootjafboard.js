@@ -1,8 +1,8 @@
 const { SlashCommandBuilder, codeBlock } = require('discord.js');
 const Sequelize = require('sequelize');
-const sequelize = require('../db.js');
+const sequelize = require('../../db.js');
 
-const BootJaf = require('../models/BootJaf')(sequelize, Sequelize.DataTypes);
+const BootJaf = require('../../models/BootJaf')(sequelize, Sequelize.DataTypes);
 
 module.exports = {
 	data: new SlashCommandBuilder()

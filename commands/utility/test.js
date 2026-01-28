@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');  // Corrected package import
 require('dotenv').config();  // Ensure your .env file is loaded
-const { geminiApiKey, geminiModel } = require('../config.json');
+const { geminiApiKey, geminiModel } = require('../../config.json');
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);  // Make sure API_KEY is in your .env file

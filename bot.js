@@ -25,6 +25,21 @@ try {
     const GACMessage = require('./models/GACMessage')(sequelize, Sequelize.DataTypes);
     const User = require('./models/User')(sequelize, Sequelize.DataTypes);
     const LevelUpMessage = require('./models/LevelUpMessage')(sequelize, Sequelize.DataTypes);
+    const OutOfContext = require('./models/OutOfContext')(sequelize, Sequelize.DataTypes);
+    const Nomination = require('./models/Nomination')(sequelize, Sequelize.DataTypes);
+    const WordleScore = require('./models/WordleScore')(sequelize, Sequelize.DataTypes);
+
+    // Make models accessible via client
+    client.models = {
+        GMCMessage,
+        GACMessage,
+        User,
+        LevelUpMessage,
+        OutOfContext,
+        Nomination,
+        WordleScore,
+    };
+    client.sequelize = sequelize;
 
     // Sync all models (alter: true adds new columns to existing tables)
     sequelize.sync({ alter: true })
@@ -37,30 +52,37 @@ try {
 
 // Command Handling with Debugging
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+function getCommandFiles(dir) {
+    const dirents = fs.readdirSync(dir, { withFileTypes: true });
+    const files = dirents
+        .filter(dirent => dirent.isFile() && dirent.name.endsWith('.js'))
+        .map(dirent => path.join(dir, dirent.name));
+    const dirs = dirents
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => path.join(dir, dirent.name));
+    for (const subdir of dirs) {
+        files.push(...getCommandFiles(subdir));
+    }
+    return files;
+}
+
+const commandFiles = getCommandFiles(commandsPath);
 
 console.log('Loading commands...');
 
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    
+for (const filePath of commandFiles) {
     try {
         const command = require(filePath);
 
-        // Debugging: Log command structure
-        // console.log(`Loading command from ${filePath}:`, command);
-
-        // Check if command has the required properties
         if (!command || !command.data || !command.data.name) {
-            console.error(`Error in ${file}: Missing 'data' or 'data.name' property.`);
-            continue; // Skip this file if it's not structured correctly
+            console.error(`Error in ${path.basename(filePath)}: Missing 'data' or 'data.name' property.`);
+            continue;
         }
 
-        // Add the command to the client's command collection
         client.commands.set(command.data.name, command);
-        // console.log(`Command '${command.data.name}' loaded successfully.`);
     } catch (error) {
-        console.error(`Failed to load command ${file}:`, error);
+        console.error(`Failed to load command ${path.basename(filePath)}:`, error);
     }
 }
 

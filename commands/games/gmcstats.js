@@ -1,8 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { Sequelize } = require('sequelize');
-const sequelize = require('../db.js');
-const GMCMessage = require('../models/GMCMessage.js')(sequelize, Sequelize.DataTypes);
-const { getNickname } = require('../utils/getNickname');
+const sequelize = require('../../db.js');
+const GMCMessage = require('../../models/GMCMessage.js')(sequelize, Sequelize.DataTypes);
+const { getNickname } = require('../../utils/getNickname');
 
 /**
  * Helper function to get nickname by username (backwards compat)

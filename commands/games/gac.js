@@ -1,11 +1,11 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, geminiModel } = require('../config.json');
+const { geminiApiKey, geminiModel } = require('../../config.json');
 
 const { Sequelize } = require('sequelize');
-const sequelize = require('../db.js');
+const sequelize = require('../../db.js');
 
-const GACMessage = require('../models/GACMessage')(sequelize, Sequelize.DataTypes);
+const GACMessage = require('../../models/GACMessage')(sequelize, Sequelize.DataTypes);
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(geminiApiKey);

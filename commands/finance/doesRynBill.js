@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { Sequelize, Op } = require('sequelize');
-const sequelize = require('../db.js');
-const DoesRynBill = require('../models/DoesRynBill')(sequelize, Sequelize.DataTypes);
+const sequelize = require('../../db.js');
+const DoesRynBill = require('../../models/DoesRynBill')(sequelize, Sequelize.DataTypes);
 
 module.exports = {
     data: new SlashCommandBuilder()

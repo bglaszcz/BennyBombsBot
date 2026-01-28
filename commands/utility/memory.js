@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const userMemory = require('../userMemory');
+const userMemory = require('../../services/userMemory');
 
 module.exports = {
   data: new SlashCommandBuilder()
