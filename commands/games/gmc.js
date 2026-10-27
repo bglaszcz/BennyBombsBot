@@ -1,10 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Emojis = require('../../utils/emojis.js'); // Import the array of emojis
 
-const { Sequelize } = require('sequelize');
-const sequelize = require('../../db.js');
-
-const GMCMessage = require('../../models/GMCMessage')(sequelize, Sequelize.DataTypes);
+const { GMCMessage } = require('../../models');
 
 /**
  * Special dates configuration for GMC command
@@ -162,7 +159,7 @@ module.exports = {
       if (existingGMCMessage) {
         const existingCreatedAt = existingGMCMessage.createdAt.toLocaleString();
         const replyContent = `The crew has already been wished good morning today at ${existingCreatedAt}.`;
-        interaction.reply(replyContent);
+        await interaction.reply(replyContent);
       } else {
         let selectedEmojis;
 
@@ -207,11 +204,11 @@ module.exports = {
         const replyContent = prefix + gmcCore + suffix;
 
         // Send the reply back to the interaction
-        interaction.reply(replyContent);
+        await interaction.reply(replyContent);
       }
     } catch (error) {
       console.error(error);
-      interaction.reply('An error occurred while processing the command.');
+      await interaction.reply('An error occurred while processing the command.');
     }
   },
 };

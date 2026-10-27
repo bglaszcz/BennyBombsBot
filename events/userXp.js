@@ -1,25 +1,24 @@
-const { DataTypes } = require('sequelize');
 const { Events } = require('discord.js');
+const { User, LevelUpMessage } = require('../models');
+const settings = require('../config/settings');
 
-const sequelize = require('../db.js');
-const User = require('../models/User.js')(sequelize, DataTypes);
-const LevelUpMessage = require('../models/LevelUpMessage.js')(sequelize, DataTypes);
+const { min: MIN_XP, max: MAX_XP, cooldownMs: COOLDOWN_MS } = settings.xp;
 
-// XP reward configuration
-const MIN_XP = 15; // Minimum XP per message
-const MAX_XP = 25; // Maximum XP per message
-const COOLDOWN_MS = 60 * 1000; // 1 minute cooldown between XP gains
-
-// Guild configuration (should match config.json guildId)
-const TARGET_GUILD_ID = '771095355077033994';
+// userId -> last time XP was awarded. Checked before touching the DB so
+// messages inside the cooldown cost nothing. The DB's lastMessageTime still
+// guards the first message after a restart.
+const lastAwarded = new Map();
 
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
-    if (message.author.bot || message.guild.id !== TARGET_GUILD_ID) return;
+    if (message.author.bot || message.guild?.id !== settings.guildId) return;
+
+    const currentTime = Date.now();
+    if (currentTime - (lastAwarded.get(message.author.id) || 0) < COOLDOWN_MS) return;
 
     try {
-      const [user, created] = await User.findOrCreate({
+      const [user] = await User.findOrCreate({
         where: { userId: message.author.id },
         defaults: {
           userId: message.author.id,
@@ -30,12 +29,11 @@ module.exports = {
         },
       });
 
-      const currentTime = Date.now();
-
-      // Check cooldown before awarding XP
       if (user.lastMessageTime && currentTime - user.lastMessageTime < COOLDOWN_MS) {
+        lastAwarded.set(message.author.id, Number(user.lastMessageTime));
         return;
       }
+      lastAwarded.set(message.author.id, currentTime);
 
       // Award random XP between MIN_XP and MAX_XP
       const earnedXP = Math.floor(Math.random() * (MAX_XP - MIN_XP + 1)) + MIN_XP;
@@ -83,11 +81,11 @@ module.exports = {
           `🛠️ Lucas might be Mr. Fix-It, but ${message.author.username} just finessed their way to level ${user.level} with a little help from the squad. Blessings all around! 🔧✨`,
         ];
         const randomMessage = levelUpMessages[Math.floor(Math.random() * levelUpMessages.length)];
-        message.channel.send(randomMessage);
+        await message.channel.send(randomMessage);
+        console.log(`${message.author.tag} reached level ${user.level}.`);
       }
 
       await user.save();
-      console.log(`${message.author.tag} earned ${earnedXP} XP.`);
     } catch (error) {
       console.error('Error processing message:', error);
     }

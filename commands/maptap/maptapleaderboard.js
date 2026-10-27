@@ -1,4 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { PERIOD_CHOICES, PERIOD_LABELS, getPeriodStart } = require('../../utils/periods');
+const { getNickname } = require('../../utils/getNickname');
 const { Op, fn, col } = require('sequelize');
 
 module.exports = {
@@ -9,12 +11,7 @@ module.exports = {
             option.setName('period')
                 .setDescription('Filter the leaderboard to a specific time period')
                 .setRequired(false)
-                .addChoices(
-                    { name: 'All Time', value: 'all' },
-                    { name: 'This Year', value: 'year' },
-                    { name: 'This Month', value: 'month' },
-                    { name: 'This Week', value: 'week' },
-                ))
+                .addChoices(...PERIOD_CHOICES))
         .addStringOption(option =>
             option.setName('metric')
                 .setDescription('Stat to rank players by')
@@ -32,21 +29,8 @@ module.exports = {
         const MapTapScore = interaction.client.models.MapTapScore;
 
         const now = new Date();
-        let dateFilter = {};
-        let periodStart = null;
-
-        if (period === 'year') {
-            periodStart = new Date(now.getFullYear(), 0, 1);
-            dateFilter = { postedAt: { [Op.gte]: periodStart } };
-        } else if (period === 'month') {
-            periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            dateFilter = { postedAt: { [Op.gte]: periodStart } };
-        } else if (period === 'week') {
-            periodStart = new Date(now);
-            periodStart.setDate(now.getDate() - now.getDay());
-            periodStart.setHours(0, 0, 0, 0);
-            dateFilter = { postedAt: { [Op.gte]: periodStart } };
-        }
+        let periodStart = getPeriodStart(period, now);
+        const dateFilter = periodStart ? { postedAt: { [Op.gte]: periodStart } } : {};
 
         try {
             const stats = await MapTapScore.findAll({
@@ -117,15 +101,9 @@ module.exports = {
 
             const leaderboardText = top.map((entry, index) => {
                 const rank = index < 3 ? medals[index] : `\`${(index + 1).toString().padStart(2)}\``;
-                return `${rank} **${entry.username}** - Avg: ${entry.avgScore} | Best: ${entry.bestScore} | ${entry.totalGames} games`;
+                return `${rank} **${getNickname(entry.userId, entry.username)}** - Avg: ${entry.avgScore} | Best: ${entry.bestScore} | ${entry.totalGames} games`;
             }).join('\n');
 
-            const periodLabels = {
-                all: 'All Time',
-                year: 'This Year',
-                month: 'This Month',
-                week: 'This Week',
-            };
             const metricLabels = {
                 avg: 'Average Score',
                 best: 'Best Single Score',
@@ -136,7 +114,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor(0x1ABC9C)
                 .setTitle('🗺️ MapTap Leaderboard')
-                .setDescription(`**${periodLabels[period]}** • Sorted by: ${metricLabels[metric]}\n*Minimum ${minGames} games required (30% of ${daysInPeriod} days)*`)
+                .setDescription(`**${PERIOD_LABELS[period]}** • Sorted by: ${metricLabels[metric]}\n*Minimum ${minGames} games required (30% of ${daysInPeriod} days)*`)
                 .addFields({ name: 'Rankings', value: leaderboardText || 'No data available' })
                 .setFooter({ text: `${leaderboard.length} qualified players • ${stats.length} total players` })
                 .setTimestamp();

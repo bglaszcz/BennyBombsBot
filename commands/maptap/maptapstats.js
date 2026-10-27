@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { Op } = require('sequelize');
+const { PERIOD_CHOICES, PERIOD_LABELS, getPeriodFilter } = require('../../utils/periods');
+const { getNickname } = require('../../utils/getNickname');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -13,33 +14,15 @@ module.exports = {
             option.setName('period')
                 .setDescription('Filter stats to a specific time period')
                 .setRequired(false)
-                .addChoices(
-                    { name: 'All Time', value: 'all' },
-                    { name: 'This Year', value: 'year' },
-                    { name: 'This Month', value: 'month' },
-                    { name: 'This Week', value: 'week' },
-                )),
+                .addChoices(...PERIOD_CHOICES)),
     async execute(interaction) {
         const targetUser = interaction.options.getUser('user') || interaction.user;
         const period = interaction.options.getString('period') || 'all';
 
         const MapTapScore = interaction.client.models.MapTapScore;
 
-        const now = new Date();
-        let dateFilter = {};
-
-        if (period === 'year') {
-            const startOfYear = new Date(now.getFullYear(), 0, 1);
-            dateFilter = { postedAt: { [Op.gte]: startOfYear } };
-        } else if (period === 'month') {
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            dateFilter = { postedAt: { [Op.gte]: startOfMonth } };
-        } else if (period === 'week') {
-            const startOfWeek = new Date(now);
-            startOfWeek.setDate(now.getDate() - now.getDay());
-            startOfWeek.setHours(0, 0, 0, 0);
-            dateFilter = { postedAt: { [Op.gte]: startOfWeek } };
-        }
+        const dateFilter = getPeriodFilter(period);
+        const displayName = getNickname(targetUser.id, targetUser.username);
 
         try {
             const scores = await MapTapScore.findAll({
@@ -52,7 +35,7 @@ module.exports = {
 
             if (scores.length === 0) {
                 return interaction.reply({
-                    content: `No MapTap scores found for ${targetUser.username} in the selected period.`,
+                    content: `No MapTap scores found for ${displayName} in the selected period.`,
                     flags: MessageFlags.Ephemeral,
                 });
             }
@@ -82,29 +65,42 @@ module.exports = {
                 return `${dateLabel}: **${g.finalScore}**`;
             }).join(' | ');
 
-            const periodLabels = {
-                all: 'All Time',
-                year: 'This Year',
-                month: 'This Month',
-                week: 'This Week',
-            };
+            // Score distribution by 100-point band (e.g. 400-499, 500-599, ...)
+            const bandCounts = new Map();
+            for (const score of finalScores) {
+                const band = Math.floor(score / 100) * 100;
+                bandCounts.set(band, (bandCounts.get(band) || 0) + 1);
+            }
+            const minBand = Math.floor(worstScore / 100) * 100;
+            const maxBand = Math.floor(bestScore / 100) * 100;
+            const maxBandCount = Math.max(...bandCounts.values());
+            const barWidth = 10;
+            const bandLines = [];
+            for (let band = minBand; band <= maxBand; band += 100) {
+                const count = bandCounts.get(band) || 0;
+                const filled = maxBandCount > 0 ? Math.round((count / maxBandCount) * barWidth) : 0;
+                const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled);
+                bandLines.push(`\`${band}s\` ${bar} ${count}`);
+            }
+            const bandText = bandLines.join('\n');
+
 
             const embed = new EmbedBuilder()
                 .setColor(0x1ABC9C)
-                .setTitle(`🗺️ MapTap Stats: ${targetUser.username}`)
-                .setDescription(`**${periodLabels[period]}**`)
+                .setTitle(`🗺️ MapTap Stats: ${displayName}`)
+                .setDescription(`**${PERIOD_LABELS[period]}**`)
                 .addFields(
                     { name: '🎮 Games Played', value: totalGames.toString(), inline: true },
                     { name: '📈 Avg Score', value: avgScore.toString(), inline: true },
                     { name: '🏆 Best Score', value: bestScore.toString(), inline: true },
                     { name: '💀 Worst Score', value: worstScore.toString(), inline: true },
                     { name: '\n📊 Avg Score Per Round', value: roundText, inline: false },
+                    { name: '📶 Score Distribution', value: bandText, inline: false },
                     { name: '🕐 Recent Games', value: recentText, inline: false },
                 )
                 .setTimestamp();
 
-            const reply = await interaction.reply({ embeds: [embed], fetchReply: true });
-            setTimeout(() => reply.delete().catch(() => {}), 5 * 60 * 1000);
+            await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 
         } catch (error) {
             console.error('Error fetching MapTap stats:', error);

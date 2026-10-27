@@ -1,21 +1,29 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('prune')
 		.setDescription('Prune up to 99 messages.')
-		.addIntegerOption(option => option.setName('amount').setDescription('Number of messages to prune')),
+		.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+		.addIntegerOption(option => option
+			.setName('amount')
+			.setDescription('Number of messages to prune')
+			.setMinValue(1)
+			.setMaxValue(99)
+			.setRequired(true)),
 	async execute(interaction) {
 		const amount = interaction.options.getInteger('amount');
 
-		if (amount < 1 || amount > 99) {
-			return interaction.reply({ content: 'You need to input a number between 1 and 99.', flags: MessageFlags.Ephemeral });
-		}
-		await interaction.channel.bulkDelete(amount, true).catch(error => {
-			console.error(error);
-			interaction.reply({ content: 'There was an error trying to prune messages in this channel!', flags: MessageFlags.Ephemeral });
-		});
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-		return interaction.reply({ content: `Successfully pruned \`${amount}\` messages.`, flags: MessageFlags.Ephemeral });
+		try {
+			// `true` skips messages older than 14 days, which Discord can't bulk delete
+			const deleted = await interaction.channel.bulkDelete(amount, true);
+			return interaction.editReply(`Successfully pruned \`${deleted.size}\` messages.`);
+		}
+		catch (error) {
+			console.error(error);
+			return interaction.editReply('There was an error trying to prune messages in this channel!');
+		}
 	},
 };

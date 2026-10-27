@@ -1,18 +1,17 @@
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, geminiImageModel } = require('../../config.json');
-const Sequelize = require('sequelize');
-const sequelize = require('../../db.js');
+const { Op } = require('sequelize');
+const { OpenAIAPIUsage } = require('../../models');
+const { generateImage, SafetyBlockError } = require('../../services/gemini');
+const { image: imageSettings } = require('../../config/settings');
 
-const OpenAIAPIUsage = require('../../models/OpenAIAPIUsage')(sequelize, Sequelize.DataTypes);
-
-const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({
-  model: geminiImageModel,
-  generationConfig: { responseModalities: ['Text', 'Image'] },
-});
+function startOfToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
 
 module.exports = {
+  // Seconds between uses per user — each generation costs money
+  cooldown: 30,
   data: new SlashCommandBuilder()
     .setName('image')
     .setDescription('Generate an image from a prompt')
@@ -21,43 +20,46 @@ module.exports = {
       .setDescription('The prompt for generating the image')
       .setRequired(true)),
   async execute(interaction) {
-    if (!interaction.isCommand()) return; // Ignore non-command interactions
-
     const userPrompt = interaction.options.getString('prompt');
 
-    try {
-      await OpenAIAPIUsage.create({
-          username: interaction.user.username,
-          prompt: userPrompt,
-          type: 'image',
-      });
-    }
-    catch (error) {
-        console.log(error);
+    const usedToday = await OpenAIAPIUsage.count({
+      where: {
+        username: interaction.user.username,
+        type: 'image',
+        createdAt: { [Op.gte]: startOfToday() },
+      },
+    });
+    if (usedToday >= imageSettings.dailyLimitPerUser) {
+      return interaction.reply(`You've hit today's limit of ${imageSettings.dailyLimitPerUser} images. Your GPU budget resets at midnight. 🎨`);
     }
 
-    // Acknowledge the interaction
     await interaction.deferReply();
 
     try {
-      const result = await model.generateContent(userPrompt);
-      const parts = result.response.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find(part => part.inlineData);
-
-      if (imagePart) {
-        // Gemini returns the image as inline base64 data, so attach it directly
-        const buffer = Buffer.from(imagePart.inlineData.data, 'base64');
-        const attachment = new AttachmentBuilder(buffer, { name: 'image.png' });
-        const embed = new EmbedBuilder()
-          .setImage('attachment://image.png');
-
-        await interaction.editReply({ embeds: [embed], files: [attachment] });
-      } else {
-        await interaction.followUp('Failed to generate an image.');
+      const buffer = await generateImage(userPrompt);
+      if (!buffer) {
+        return interaction.editReply('Failed to generate an image.');
       }
-    } catch (error) {
-      const errorMessage = 'Gemini API Error: ' + (error.message || 'Unknown error');
-      await interaction.followUp(errorMessage);
+
+      await OpenAIAPIUsage.create({
+        username: interaction.user.username,
+        prompt: userPrompt.slice(0, 255),
+        type: 'image',
+      });
+
+      const attachment = new AttachmentBuilder(buffer, { name: 'image.png' });
+      const embed = new EmbedBuilder()
+        .setImage('attachment://image.png')
+        .setFooter({ text: userPrompt.slice(0, 2048) });
+
+      await interaction.editReply({ embeds: [embed], files: [attachment] });
+    }
+    catch (error) {
+      console.error('Image generation failed:', error);
+      const message = error instanceof SafetyBlockError
+        ? "Gemini refused to draw that one. Try something a little less cursed. 🙈"
+        : 'Image generation failed. Try again in a bit. 😵';
+      await interaction.editReply(message);
     }
   },
 };

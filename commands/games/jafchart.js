@@ -1,18 +1,13 @@
+const path = require('node:path');
 const { SlashCommandBuilder } = require('discord.js');
+
+const IMAGE = path.join(__dirname, '..', '..', 'assets', 'images', 'jafchart', 'image1.png');
 
 module.exports = {
 	data: new SlashCommandBuilder()
-        .setName(`jafchart`)
-        .setDescription(`Show jaf fun chart`),
-    execute(interaction) {
-
-        const images = `./assets/images/jafchart/image1.png`;
-
-        try {
-            interaction.reply({ files: [images] });
-        }
-        catch (err) {
-            interaction.reply("YOU BROKE IT!!!");
-        }
+        .setName('jafchart')
+        .setDescription('Show jaf fun chart'),
+    async execute(interaction) {
+        await interaction.reply({ files: [IMAGE] });
     },
 };

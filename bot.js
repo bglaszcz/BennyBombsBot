@@ -1,60 +1,32 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, GatewayIntentBits } = require('discord.js');
+const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
 const { token } = require('./config.json');
 
-// Add database imports
-const { Sequelize } = require('sequelize');
-const sequelize = require('./db.js');
+const models = require('./models');
+const userMemory = require('./services/userMemory');
+
+const { sequelize } = models;
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMessageReactions,
     ],
+    // Reactions on messages sent before the bot started arrive as partials
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
 client.commands = new Collection();
+// customId prefix -> handler, for buttons/select menus that outlive a collector
+client.components = new Collection();
+client.models = { ...models };
+delete client.models.sequelize;
+client.sequelize = sequelize;
 
-// Initialize database models
-console.log('Initializing database models...');
-try {
-    // Load your existing models
-    const GMCMessage = require('./models/GMCMessage')(sequelize, Sequelize.DataTypes);
-    const GACMessage = require('./models/GACMessage')(sequelize, Sequelize.DataTypes);
-    const User = require('./models/User')(sequelize, Sequelize.DataTypes);
-    const LevelUpMessage = require('./models/LevelUpMessage')(sequelize, Sequelize.DataTypes);
-    const OutOfContext = require('./models/OutOfContext')(sequelize, Sequelize.DataTypes);
-    const Nomination = require('./models/Nomination')(sequelize, Sequelize.DataTypes);
-    const WordleScore = require('./models/WordleScore')(sequelize, Sequelize.DataTypes);
-    const WordleReminderOptIn = require('./models/WordleReminderOptIn')(sequelize, Sequelize.DataTypes);
-    const MapTapScore = require('./models/MapTapScore')(sequelize, Sequelize.DataTypes);
-
-    // Make models accessible via client
-    client.models = {
-        GMCMessage,
-        GACMessage,
-        User,
-        LevelUpMessage,
-        OutOfContext,
-        Nomination,
-        WordleScore,
-        WordleReminderOptIn,
-        MapTapScore,
-    };
-    client.sequelize = sequelize;
-
-    // Sync all models (alter: true adds new columns to existing tables)
-    sequelize.sync({ alter: true })
-        .then(() => console.log('Database models synchronized successfully.'))
-        .catch(error => console.error('Failed to sync database models:', error));
-
-} catch (error) {
-    console.error('Error initializing database models:', error);
-}
-
-// Command Handling with Debugging
+// Command Handling
 const commandsPath = path.join(__dirname, 'commands');
 
 function getCommandFiles(dir) {
@@ -71,11 +43,9 @@ function getCommandFiles(dir) {
     return files;
 }
 
-const commandFiles = getCommandFiles(commandsPath);
-
 console.log('Loading commands...');
 
-for (const filePath of commandFiles) {
+for (const filePath of getCommandFiles(commandsPath)) {
     try {
         const command = require(filePath);
 
@@ -84,54 +54,81 @@ for (const filePath of commandFiles) {
             continue;
         }
 
+        // Folder name doubles as the /help category
+        command.category = path.basename(path.dirname(filePath));
         client.commands.set(command.data.name, command);
-    } catch (error) {
+
+        for (const [prefix, handler] of Object.entries(command.components || {})) {
+            client.components.set(prefix, handler);
+        }
+    }
+    catch (error) {
         console.error(`Failed to load command ${path.basename(filePath)}:`, error);
     }
 }
 
-// Event Handling with Debugging
+// Event Handling
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
 console.log('Loading events...');
 
 for (const file of eventFiles) {
-    const filePath = path.join(eventsPath, file);
-
     try {
-        const event = require(filePath);
+        const event = require(path.join(eventsPath, file));
 
-        // Debugging: Log event structure
-        // console.log(`Loading event from ${filePath}:`, event);
-
-        // Check if event has the required properties
         if (!event || !event.name || !event.execute) {
             console.error(`Error in ${file}: Missing 'name' or 'execute' property.`);
-            continue; // Skip this file if it's not structured correctly
+            continue;
         }
 
+        const listener = (...args) => Promise.resolve(event.execute(...args))
+            .catch(error => console.error(`Unhandled error in event ${file}:`, error));
+
         if (event.once) {
-            client.once(event.name, (...args) => event.execute(...args));
-            // console.log(`Event '${event.name}' loaded as once.`);
-        } else {
-            client.on(event.name, (...args) => event.execute(...args));
-            // console.log(`Event '${event.name}' loaded.`);
+            client.once(event.name, listener);
         }
-    } catch (error) {
+        else {
+            client.on(event.name, listener);
+        }
+    }
+    catch (error) {
         console.error(`Failed to load event ${file}:`, error);
     }
 }
 
-// Log in the client
-client.login(token)
-    .then(() => console.log('Logged in successfully.'))
-    .catch(error => console.error('Failed to log in:', error));
+process.on('unhandledRejection', error => {
+    console.error('Unhandled promise rejection:', error);
+});
+
+(async () => {
+    try {
+        // Creates missing tables only. Run `npm run db:sync` after changing a model's columns.
+        await sequelize.sync();
+        console.log('Database models synchronized successfully.');
+    }
+    catch (error) {
+        console.error('Failed to sync database models:', error);
+    }
+
+    try {
+        await client.login(token);
+        console.log('Logged in successfully.');
+    }
+    catch (error) {
+        console.error('Failed to log in:', error);
+    }
+})();
 
 // Graceful shutdown
+let shuttingDown = false;
+
 async function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log(`Received ${signal}, shutting down...`);
-    client.destroy();
+    userMemory.flush();
+    await client.destroy();
     await sequelize.close();
     process.exit(0);
 }

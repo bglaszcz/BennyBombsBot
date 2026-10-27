@@ -1,56 +1,45 @@
-const { Sequelize, DataTypes } = require('sequelize');
-const dayjs = require('dayjs');
 const { Events } = require('discord.js');
-
-const sequelize = require('../db.js');
-const DethToot = require('../models/DethToot.js')(sequelize, Sequelize.DataTypes);
+const { DethToot, DethTootLog } = require('../models');
+const { formatDuration } = require('../utils/formatDuration');
 
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
     if (message.author.bot) return;
+    if (!message.content.toLowerCase().includes('deth toot')) return;
 
-    if (
-      message.content.toLowerCase().includes('deth toot')
-    ) {
-      try {
-        const dethTootEntry = await DethToot.findOne({
-          where: { username: message.author.username },
-          order: [['lastTootDate', 'DESC']],
-        });
+    try {
+      // DethToot keeps one "latest" row per username; DethTootLog records every toot
+      const dethTootEntry = await DethToot.findOne({
+        where: { username: message.author.username },
+        order: [['lastTootDate', 'DESC']],
+      });
 
-        const now = dayjs();
-        const lastTootDate = dethTootEntry ? dayjs(dethTootEntry.lastTootDate) : dayjs(0);
+      const now = new Date();
+      let responseMessage;
 
-        const durationInMilliseconds = now.diff(lastTootDate);
-        const days = durationInMilliseconds / (1000 * 60 * 60 * 24); // Convert milliseconds to days
-
-        let responseMessage = `${message.author} last had deth toots on ${lastTootDate.toLocaleString()}.`;
-
-        if (days < 1) {
-          const hours = durationInMilliseconds / (1000 * 60 * 60);
-          const minutes = durationInMilliseconds / (1000 * 60);
-          const seconds = durationInMilliseconds / 1000;
-          responseMessage += ` ${hours.toFixed(1)} hours, ${minutes.toFixed(1)} minutes, and ${seconds.toFixed(1)} seconds since ${message.author} last had deth toots`;
-        } else {
-          responseMessage += ` ${days.toFixed(1)} days since ${message.author} last had deth toots`;
-        }
-
-        if (dethTootEntry) {
-          await dethTootEntry.update({
-            lastTootDate: now.toDate(),
-          });
-        } else {
-          await DethToot.create({
-            username: message.author.username,
-            lastTootDate: now.toDate(),
-          });
-        }
-
-        message.channel.send(responseMessage);
-      } catch (error) {
-        console.error(error);
+      if (dethTootEntry) {
+        const last = new Date(dethTootEntry.lastTootDate);
+        const unix = Math.floor(last.getTime() / 1000);
+        responseMessage = `${message.author} last had deth toots <t:${unix}:f>. ` +
+          `That's **${formatDuration(now - last)}** of peace, now shattered. 💨`;
+        await dethTootEntry.update({ lastTootDate: now });
       }
+      else {
+        responseMessage = `${message.author} has logged their first ever deth toot. The clock starts now. ⏱️💨`;
+        await DethToot.create({ username: message.author.username, lastTootDate: now });
+      }
+
+      await DethTootLog.create({
+        userId: message.author.id,
+        username: message.author.username,
+        tootedAt: now,
+      });
+
+      await message.channel.send(responseMessage);
+    }
+    catch (error) {
+      console.error('Error handling deth toot:', error);
     }
   },
 };

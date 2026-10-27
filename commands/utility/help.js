@@ -1,47 +1,74 @@
-const fs = require("fs");
-const path = require("path");
-const { EmbedBuilder } = require('discord.js');
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags, ApplicationCommandOptionType } = require('discord.js');
+
+const CATEGORY_LABELS = {
+	fun: '🤪 Fun',
+	games: '🎮 Games',
+	wordle: '🟩 Wordle',
+	maptap: '🗺️ MapTap',
+	social: '👥 Social',
+	finance: '💸 Finance',
+	utility: '🛠️ Utility',
+};
+
+function isSlashCommand(command) {
+	// Context menu builders carry a `type`; slash commands don't
+	return command.data.type === undefined;
+}
+
+function describeCommand(command) {
+	const json = command.data.toJSON();
+	const lines = [json.description];
+
+	const subcommands = (json.options || []).filter(o => o.type === ApplicationCommandOptionType.Subcommand);
+	if (subcommands.length > 0) {
+		lines.push('', ...subcommands.map(sub => `\`/${json.name} ${sub.name}\` — ${sub.description}`));
+	}
+	else if (json.options?.length) {
+		lines.push('', ...json.options.map(o => `\`${o.name}\`${o.required ? '' : ' (optional)'} — ${o.description}`));
+	}
+	return lines.join('\n');
+}
 
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('help')
-		.setDescription('Show help menu'),
+		.setDescription('Show help menu')
+		.addStringOption(option => option
+			.setName('command')
+			.setDescription('Get details for one command')
+			.setRequired(false)),
 	async execute(interaction) {
-		const excludedFiles = ['help.js', 'b3.js', 'prune.js', 'test.js'];
+		const commands = interaction.client.commands.filter(isSlashCommand);
+		const requested = interaction.options.getString('command')?.replace(/^\//, '').toLowerCase();
 
-		const commandsDirectory = path.join(__dirname);
-
-		fs.readdir(commandsDirectory, (err, files) => {
-			if (err) console.error(err);
-
-			const jsfiles = files.filter(f => f.endsWith(".js") && !excludedFiles.includes(f));
-			if (jsfiles.length <= 0) {
-				console.log("No commands to load!");
-				return;
+		if (requested) {
+			const command = commands.get(requested);
+			if (!command) {
+				return interaction.reply({ content: `There's no \`/${requested}\` command. 🤔`, flags: MessageFlags.Ephemeral });
 			}
+			const embed = new EmbedBuilder()
+				.setColor('#0099ff')
+				.setTitle(`/${command.data.name}`)
+				.setDescription(describeCommand(command));
+			return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+		}
 
-			const nameHelp = [];
-			const descHelp = [];
+		const byCategory = new Map();
+		for (const command of commands.values()) {
+			const list = byCategory.get(command.category) || [];
+			list.push(`\`/${command.data.name}\``);
+			byCategory.set(command.category, list);
+		}
 
-			jsfiles.forEach(f => {
-				const props = require(path.join(commandsDirectory, f));
-				nameHelp.push(props.data.name);
-				descHelp.push(props.data.description);
-			});
+		const embed = new EmbedBuilder()
+			.setColor('#0099ff')
+			.setTitle('📖 BennyBombsBot Commands')
+			.setDescription('Use `/help command:<name>` for details. Right-click any message → **Apps** to quote or nominate it.');
 
-			const exampleEmbed = new EmbedBuilder()
-				.setColor('#0099ff');
+		for (const [category, names] of [...byCategory.entries()].sort()) {
+			embed.addFields({ name: CATEGORY_LABELS[category] || category, value: names.sort().join(' ') });
+		}
 
-			for (let i = 0; i < nameHelp.length; i++) {
-				exampleEmbed.addFields({
-					name: nameHelp[i],
-					value: descHelp[i],
-					inline: true,
-				});
-			}
-
-			interaction.reply({ embeds: [exampleEmbed] });
-		});
+		return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 	},
 };

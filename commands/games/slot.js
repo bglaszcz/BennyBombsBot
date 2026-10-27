@@ -1,83 +1,57 @@
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const fetch = require('node-fetch');
-// Define the Giphy API key
-const { GIPHYApiKey } = require('../../config.json');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { randomGif } = require('../../utils/giphy');
 
-// Define an array to keep track of users using the /slot command
-let slotUsers = [null, null, null, null]; // Initialize with 4 null slots
-let inactivityTimer;
-// Define the maximum wait time in milliseconds
-const maxWaitTime = 120000; // 2 minutes
+const SLOT_COUNT = 4;
+// Slots clear if nobody joins for this long
+const INACTIVITY_MS = 2 * 60 * 1000;
+const JACKPOT_IMAGE_URL = 'https://cdn.discordapp.com/attachments/771095355077033996/1046879683259678781/IMG_1200.jpg';
 
-// Define the URL of the specified image
-const specifiedImageUrl = 'https://cdn.discordapp.com/attachments/771095355077033996/1046879683259678781/IMG_1200.jpg';
+let slotUsers = [];
+let inactivityTimer = null;
+
+function resetSlots() {
+  slotUsers = [];
+  clearTimeout(inactivityTimer);
+  inactivityTimer = null;
+}
+
+function slotDisplay() {
+  return Array.from({ length: SLOT_COUNT }, (_, i) => `--${slotUsers[i]?.username || `Slot${i + 1}`}--`).join('/');
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('slot')
     .setDescription('Use the /slot command to join a slot game.'),
   async execute(interaction) {
-    const user = interaction.user.username;
+    if (slotUsers.some(u => u.id === interaction.user.id)) {
+      return interaction.reply({ content: "You're already in a slot. Wait for the others! 🎰", flags: MessageFlags.Ephemeral });
+    }
 
-    // Reset the inactivity timer if it's empty
-    if (slotUsers.every(slot => slot === null)) {
+    slotUsers.push({ id: interaction.user.id, username: interaction.user.username });
+
+    if (slotUsers.length < SLOT_COUNT) {
+      // Every join restarts the inactivity clock
       clearTimeout(inactivityTimer);
+      const channel = interaction.channel;
+      inactivityTimer = setTimeout(() => {
+        resetSlots();
+        channel.send('🎰 All slots have been cleared due to inactivity.').catch(() => {});
+      }, INACTIVITY_MS);
+
+      return interaction.reply(`Current slots: (${slotDisplay()})`);
     }
 
-    // Check if the user has already used the /slot command
-    // if (slotUsers.includes(user)) {
-    //   await interaction.reply({ content: 'You have already used the /slot command.', flags: MessageFlags.Ephemeral });
-    //   return;
-    // }
+    // All slots filled — jackpot
+    resetSlots();
+    await interaction.reply(JACKPOT_IMAGE_URL);
 
-    // Defer the reply to avoid "InteractionNotReplied" error
-    await interaction.deferReply();
-
-    // Find the first empty slot and fill it with the user's name
-    const emptySlotIndex = slotUsers.indexOf(null);
-    if (emptySlotIndex !== -1) {
-      slotUsers[emptySlotIndex] = user;
+    try {
+      const gif = await randomGif('stuffed');
+      if (gif) await interaction.followUp(gif.url);
     }
-
-    // Check if all slots are filled
-    if (!slotUsers.includes(null) && slotUsers.length === 4) {
-      // Clear the list of users
-      slotUsers = [null, null, null, null];
-
-      // Retrieve a random GIF from Giphy API
-      try {
-        const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHYApiKey}&q=stuffed&limit=50&rating=r`;
-        const response = await fetch(url);
-        const json = await response.json();
-
-        const index = Math.floor(Math.random() * json.data.length);
-
-
-        // const embed = new EmbedBuilder()
-        //   .setURL(
-        //         {value: `${json.data[index].url}`},
-        //         {value: `${specifiedImageUrl}`},
-        //     ); // Set the image URL as the image in the embed
-        // await interaction.followUp(embed);
-        await interaction.followUp(`${specifiedImageUrl}`);
-        await interaction.followUp(`${json.data[index].url}`);
-      } catch (error) {
-        console.error('Error fetching GIF from Giphy:', error);
-        await interaction.followUp('An error occurred while selecting a random GIF.');
-      }
-
-      // Send the specified image
-      
-    } else {
-      // Display the slots with user names and placeholders
-      const slotDisplay = slotUsers.map((slot, index) => `--${slot || `Slot${index + 1}`}--`).join('/');
-      await interaction.followUp(`Current slots: (${slotDisplay})`);
+    catch (error) {
+      console.error('Error fetching GIF from Giphy:', error);
     }
-
-    // Set a timeout to remove the user from the list if they don't use /slot again within 2 minutes
-    inactivityTimer = setTimeout(() => {
-      slotUsers = [null, null, null, null]; // Clear the array
-      interaction.followUp({content:`All slots have been cleared due to inactivity.`, flags: MessageFlags.Ephemeral });
-    }, maxWaitTime);
   },
 };

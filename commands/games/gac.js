@@ -1,15 +1,14 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, geminiModel } = require('../../config.json');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { GACMessage } = require('../../models');
+const { generateText } = require('../../services/gemini');
+const { settleBets } = require('../../services/gacBets');
 
-const { Sequelize } = require('sequelize');
-const sequelize = require('../../db.js');
-
-const GACMessage = require('../../models/GACMessage')(sequelize, Sequelize.DataTypes);
-
-// Initialize Google Generative AI
-const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: geminiModel });
+const FALLBACK_EXCUSES = [
+  "My new smart doorbell's installation manual is in Swedish and I'm the only one who speaks Swedish in a 3-mile radius.",
+  "My HOA is having an emergency meeting about whether the Johnson's garden gnome is 0.3 inches too tall and violates community standards.",
+  "I accidentally ordered 200 pounds of quinoa instead of 2 pounds and need to figure out what to do with it before it expires.",
+  "My cat learned how to open doors and has been letting all the neighborhood cats into my house for what appears to be some sort of feline summit.",
+];
 
 async function generateLucasExcuse(isMayFourth = false) {
   try {
@@ -17,7 +16,7 @@ async function generateLucasExcuse(isMayFourth = false) {
     const lastExcuses = await GACMessage.findAll({
       limit: 5,
       order: [['createdAt', 'DESC']],
-      attributes: ['excuse']
+      attributes: ['excuse'],
     });
 
     const previousExcuses = lastExcuses.map(e => `- ${e.excuse}`).join("\n");
@@ -58,20 +57,11 @@ EXAMPLES of correct format (notice they start directly with the situation):
 
 Generate only the excuse reason itself - no extra text, quotation marks, or leaving/departing phrases.`;
 
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
-
-  } catch (error) {
+    return await generateText(prompt);
+  }
+  catch (error) {
     console.error('Error generating Lucas excuse:', error);
-
-    // Fallback excuses in case AI fails
-    const fallbackExcuses = [
-      "My new smart doorbell's installation manual is in Swedish and I'm the only one who speaks Swedish in a 3-mile radius.",
-      "My HOA is having an emergency meeting about whether the Johnson's garden gnome is 0.3 inches too tall and violates community standards.",
-      "I accidentally ordered 200 pounds of quinoa instead of 2 pounds and need to figure out what to do with it before it expires.",
-      "My cat learned how to open doors and has been letting all the neighborhood cats into my house for what appears to be some sort of feline summit."
-    ];
-    return fallbackExcuses[Math.floor(Math.random() * fallbackExcuses.length)];
+    return FALLBACK_EXCUSES[Math.floor(Math.random() * FALLBACK_EXCUSES.length)];
   }
 }
 
@@ -84,46 +74,31 @@ module.exports = {
         .setDescription('Run in test mode')
         .addChoices(
           { name: 'Normal', value: 'normal' },
-          { name: 'Test', value: 'test' }
+          { name: 'Test', value: 'test' },
         )
         .setRequired(false)),
-  
+
   async execute(interaction) {
     const today = new Date();
     const todayString = today.toLocaleDateString();
     const currentHour = today.getHours();
-    const mode = interaction.options.getString('mode') || 'normal';
-    const isTestMode = mode === 'test';
-    
-    // Debug logging
-    console.log('GAC Debug:', {
-      mode,
-      isTestMode,
-      allOptions: interaction.options.data,
-      currentHour,
-      todayString
-    });
-    
+    const isTestMode = interaction.options.getString('mode') === 'test';
+
     // Check if current time is between 12pm and 4pm (skip in test mode)
     if (!isTestMode && currentHour < 12) {
       return interaction.reply("GAC can only be used between 12pm and 4pm! Lucas doesn't make excuses outside of afternoon hours. ⏰");
     }
 
     if (!isTestMode && currentHour >= 16) {
-      // Check if Lucas already made an excuse today
-      const existingExcuse = await GACMessage.findOne({
-        where: { date: todayString }
-      });
+      const existingExcuse = await GACMessage.findOne({ where: { date: todayString } });
 
       if (existingExcuse) {
-        const existingCreatedAt = existingExcuse.createdAt.toLocaleString();
-        return interaction.reply(`Lucas already made his excuse for today at ${existingCreatedAt}`);
+        return interaction.reply(`Lucas already made his excuse for today at ${existingExcuse.createdAt.toLocaleString()}`);
       }
 
       return interaction.reply("Bro it's after 4pm, Lucas is long gone. 🫥");
     }
-    
-    // Check for special date
+
     const isApril21st2028 = today.getFullYear() === 2028 &&
                            today.getMonth() === 3 &&
                            today.getDate() === 21;
@@ -134,56 +109,40 @@ module.exports = {
 
     const isMayFourth = today.getMonth() === 4 && today.getDate() === 4;
 
-    // Main GAC command logic
-    try {
-      await interaction.deferReply({ ephemeral: isTestMode });
+    await interaction.deferReply(isTestMode ? { flags: MessageFlags.Ephemeral } : {});
 
-      // Only check for existing messages if NOT in test mode
-      if (!isTestMode) {
-        const existingGACMessage = await GACMessage.findOne({
-          where: { date: todayString }
-        });
+    // Only check for existing messages if NOT in test mode
+    if (!isTestMode) {
+      const existingGACMessage = await GACMessage.findOne({ where: { date: todayString } });
 
-        if (existingGACMessage) {
-          const existingCreatedAt = existingGACMessage.createdAt.toLocaleString();
-          const replyContent = `Lucas already made his excuse for today at ${existingCreatedAt}`;
-          return interaction.editReply(replyContent);
-        }
+      if (existingGACMessage) {
+        return interaction.editReply(`Lucas already made his excuse for today at ${existingGACMessage.createdAt.toLocaleString()}`);
       }
-
-      // Generate Lucas's excuse
-      const excuse = await generateLucasExcuse(isMayFourth);
-
-      // Create a new GACMessage in the database (skip in test mode)
-      if (!isTestMode) {
-        await GACMessage.create({
-          date: todayString,
-          username: interaction.user.username,
-          emojis: '',
-          excuse: excuse
-        });
-      }
-
-      // Build the reply message
-      const mayFourthHeader = isMayFourth
-        ? '\n\n*✨ May the Fourth Be With You ✨*'
-        : '';
-      const replyContent =
-        ':regional_indicator_g::regional_indicator_a::regional_indicator_c:' +
-        mayFourthHeader +
-        '\n\n**Lucas:** "Hey team, I need to head out early today. ' + excuse + '"' +
-        (isTestMode ? '\n\n*⚠️ Test mode - not saved to database*' : '');
-
-      return interaction.editReply(replyContent);
-
-    } catch (error) {
-      console.error('Error in GAC command:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      return interaction.editReply(`An error occurred while generating Lucas's excuse. He'll have to stay late today! 😅\n\n*Debug: ${error.message}*`);
     }
-  }
+
+    const excuse = await generateLucasExcuse(isMayFourth);
+
+    let betResults = null;
+    if (!isTestMode) {
+      await GACMessage.create({
+        date: todayString,
+        username: interaction.user.username,
+        emojis: '',
+        excuse,
+      });
+      betResults = await settleBets(todayString, excuse);
+    }
+
+    const mayFourthHeader = isMayFourth
+      ? '\n\n*✨ May the Fourth Be With You ✨*'
+      : '';
+    const replyContent =
+      ':regional_indicator_g::regional_indicator_a::regional_indicator_c:' +
+      mayFourthHeader +
+      '\n\n**Lucas:** "Hey team, I need to head out early today. ' + excuse + '"' +
+      (betResults ? `\n\n${betResults}` : '') +
+      (isTestMode ? '\n\n*⚠️ Test mode - not saved to database*' : '');
+
+    return interaction.editReply(replyContent);
+  },
 };

@@ -1,11 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { geminiApiKey, geminiModel } = require('../config.json');
+const { generateJson } = require('./gemini');
 
 const MEMORY_FILE = path.join(__dirname, '..', 'userMemories.json');
-const genAI = new GoogleGenerativeAI(geminiApiKey);
-const memoryModel = genAI.getGenerativeModel({ model: geminiModel });
 
 // Debounced save configuration
 const SAVE_DEBOUNCE_MS = 5000; // 5 seconds - batch writes for efficiency
@@ -145,21 +142,20 @@ function performSave(memories) {
   }
 }
 
-// Ensure pending saves are flushed on process exit
-process.on('exit', () => {
-  if (pendingSave) {
-    performSave(memories);
-  }
-});
+/**
+ * Write any debounced changes to disk right now. Called from the bot's
+ * shutdown handler so nothing is lost on restart.
+ */
+function flush() {
+  if (!pendingSave) return;
+  if (saveTimeout) clearTimeout(saveTimeout);
+  performSave(memories);
+}
 
-process.on('SIGINT', () => {
-  if (pendingSave) {
-    performSave(memories);
-  }
-  process.exit();
-});
+// Last-chance flush if the process exits some other way
+process.on('exit', flush);
 
-let memories = loadMemories();
+const memories = loadMemories();
 
 /**
  * If the on-disk file has changed since our last read/write, reload it,
@@ -197,7 +193,8 @@ function syncFromDiskIfChanged() {
 // Poll rather than fs.watch: some editors save via a temp-file-then-rename,
 // which fs.watch can miss or lose the handle for. Polling the mtime is slower
 // (a few seconds) but reliable across editors/platforms.
-fs.watchFile(MEMORY_FILE, { interval: 3000 }, syncFromDiskIfChanged);
+// unref() so one-off scripts that import this module can still exit
+fs.watchFile(MEMORY_FILE, { interval: 3000 }, syncFromDiskIfChanged).unref();
 
 /**
  * Get or create user memory object
@@ -435,17 +432,11 @@ CRITICAL RULES:
 - Return empty arrays if nothing found
 - MUST return valid JSON only, no other text`;
 
-    const result = await memoryModel.generateContent(analysisPrompt);
-    const responseText = result.response.text().trim();
-    
-    // Extract JSON from response (in case AI adds extra text)
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const analysis = await generateJson(analysisPrompt);
+    if (!analysis) {
       console.log('No valid JSON found in AI response');
       return;
     }
-    
-    const analysis = JSON.parse(jsonMatch[0]);
     
     // Process extracted information, excluding anything explicitly forgotten
     if (analysis.facts && analysis.facts.length > 0) {
@@ -542,7 +533,10 @@ function formatMemoryForPrompt(userId) {
 
 // Get memory summary for /memory command
 function getMemorySummary(userId) {
-  const memory = getUserMemory(userId);
+  const memory = peekMemory(userId) || {
+    username: null, facts: [], preferences: {}, insideJokes: [],
+    messageCount: 0, roastScore: 0, achievements: [], firstSeen: new Date().toISOString(),
+  };
   const daysSinceFirstSeen = Math.floor(
     (Date.now() - new Date(memory.firstSeen)) / (1000 * 60 * 60 * 24)
   );
@@ -593,6 +587,16 @@ function checkAchievements(userId) {
 
 function getAllUserIds() {
   return Object.keys(memories);
+}
+
+/** Read-only lookup — unlike getUserMemory, never creates an entry */
+function peekMemory(userId) {
+  return memories[userId] || null;
+}
+
+/** Read-only lookup by Discord username, for tables that only stored usernames */
+function findMemoryByUsername(username) {
+  return Object.values(memories).find(m => m.username === username) || null;
 }
 
 function reloadMemories() {
@@ -662,8 +666,8 @@ function cleanOldMemories(userId) {
   // Age thresholds based on addedOn — facts expire by age, not by last use.
   // formatMemoryForPrompt updates lastReferenced for rotation, so using it for
   // expiry would prevent cleanup from ever running.
-  const SIXTY_DAYS = 7 * 24 * 60 * 60 * 1000;   // 7 days
-  const THIRTY_DAYS = 14 * 24 * 60 * 60 * 1000; // 14 days
+  const FACT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+  const JOKE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
   // Maximum item limits
   const MAX_FACTS = 10;
@@ -712,11 +716,11 @@ function cleanOldMemories(userId) {
     }
   });
 
-  // Remove facts older than 60 days (based on when they were first learned)
+  // Remove facts older than FACT_MAX_AGE_MS (based on when they were first learned)
   const oldFactCount = memory.facts.length;
   memory.facts = memory.facts.filter(fact => {
     const age = now - new Date(fact.addedOn).getTime();
-    return age < SIXTY_DAYS;
+    return age < FACT_MAX_AGE_MS;
   });
 
   // If still too many facts, keep only the most recently referenced
@@ -732,12 +736,12 @@ function cleanOldMemories(userId) {
     console.log(`🧹 Cleaned ${oldFactCount - memory.facts.length} stale facts for ${memory.username}`);
   }
 
-  // Remove preferences older than 60 days (based on when they were first added)
+  // Remove preferences older than FACT_MAX_AGE_MS (based on when they were first added)
   const oldPrefCount = Object.keys(memory.preferences).length;
   Object.keys(memory.preferences).forEach(key => {
     const pref = memory.preferences[key];
     const age = now - new Date(pref.addedOn).getTime();
-    if (age >= SIXTY_DAYS) {
+    if (age >= FACT_MAX_AGE_MS) {
       delete memory.preferences[key];
     }
   });
@@ -758,11 +762,11 @@ function cleanOldMemories(userId) {
     console.log(`🧹 Cleaned ${oldPrefCount - Object.keys(memory.preferences).length} stale preferences for ${memory.username}`);
   }
 
-  // Remove inside jokes older than 30 days (they get stale faster)
+  // Remove inside jokes older than JOKE_MAX_AGE_MS
   const oldJokeCount = memory.insideJokes.length;
   memory.insideJokes = memory.insideJokes.filter(joke => {
     const age = now - new Date(joke.addedOn).getTime();
-    return age < THIRTY_DAYS;
+    return age < JOKE_MAX_AGE_MS;
   });
 
   // Keep only most recently referenced inside jokes
@@ -787,7 +791,10 @@ function cleanOldMemories(userId) {
 
 // Export functions
 module.exports = {
+  flush,
   getUserMemory,
+  peekMemory,
+  findMemoryByUsername,
   getAllUserIds,
   reloadMemories,
   updateLastSeen,
