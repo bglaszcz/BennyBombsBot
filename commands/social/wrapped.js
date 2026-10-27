@@ -11,7 +11,6 @@ const { getNickname } = require('../../utils/getNickname');
 
 /**
  * Gather everything we know about one user for one calendar year.
- * Tables that only stored usernames are matched on the current username.
  */
 async function gatherStats(user, year) {
 	const start = new Date(year, 0, 1);
@@ -27,13 +26,13 @@ async function gatherStats(user, year) {
 		LevelUpMessage.count({ where: { ...byId, timestamp: { [Op.gte]: start.getTime(), [Op.lt]: end.getTime() } } }),
 		WordleScore.findAll({ where: { ...byId, postedAt: inYear }, order: [['wordleNumber', 'DESC']], raw: true }),
 		MapTapScore.findAll({ where: { ...byId, postedAt: inYear }, raw: true }),
-		GMCMessage.count({ where: { username: user.username, createdAt: inYear } }),
-		GACMessage.count({ where: { username: user.username, createdAt: inYear } }),
+		GMCMessage.count({ where: { ...byId, createdAt: inYear } }),
+		GACMessage.count({ where: { ...byId, createdAt: inYear } }),
 		OutOfContext.count({ where: { quotedUserId: user.id, createdAt: inYear } }),
 		OutOfContext.count({ where: { addedByUserId: user.id, createdAt: inYear } }),
 		Nomination.findAll({ where: { nomineeUserId: user.id, year }, attributes: ['awardType'], raw: true }),
 		Nomination.count({ where: { nominatorUserId: user.id, year } }),
-		BootJaf.count({ where: { username: user.username, createdAt: inYear } }),
+		BootJaf.count({ where: { ...byId, createdAt: inYear } }),
 		DethTootLog.count({ where: { ...byId, tootedAt: inYear } }),
 		GACBet.sum('payout', { where: { ...byId, resolved: true, createdAt: inYear } }),
 	]);

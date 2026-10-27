@@ -83,6 +83,7 @@ async function announce(client, { channelId, title, color, ranking, formatScore,
     await handOffRole(client, roleId, stateKey, champion.userId);
 }
 
+/** @param {Date} [now] - Any time on the final day of the week being scored */
 async function crownWeeklyChampions(client, now = new Date()) {
     const weekStart = getWeekStart(now);
 

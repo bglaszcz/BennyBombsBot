@@ -11,7 +11,7 @@ module.exports = {
     try {
       // DethToot keeps one "latest" row per username; DethTootLog records every toot
       const dethTootEntry = await DethToot.findOne({
-        where: { username: message.author.username },
+        where: { userId: message.author.id },
         order: [['lastTootDate', 'DESC']],
       });
 
@@ -23,11 +23,11 @@ module.exports = {
         const unix = Math.floor(last.getTime() / 1000);
         responseMessage = `${message.author} last had deth toots <t:${unix}:f>. ` +
           `That's **${formatDuration(now - last)}** of peace, now shattered. 💨`;
-        await dethTootEntry.update({ lastTootDate: now });
+        await dethTootEntry.update({ lastTootDate: now, username: message.author.username });
       }
       else {
         responseMessage = `${message.author} has logged their first ever deth toot. The clock starts now. ⏱️💨`;
-        await DethToot.create({ username: message.author.username, lastTootDate: now });
+        await DethToot.create({ userId: message.author.id, username: message.author.username, lastTootDate: now });
       }
 
       await DethTootLog.create({

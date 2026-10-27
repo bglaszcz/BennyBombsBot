@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const { User, LevelUpMessage } = require('../models');
 const settings = require('../config/settings');
+const { applyXp } = require('../utils/xp');
 
 const { min: MIN_XP, max: MAX_XP, cooldownMs: COOLDOWN_MS } = settings.xp;
 
@@ -37,15 +38,10 @@ module.exports = {
 
       // Award random XP between MIN_XP and MAX_XP
       const earnedXP = Math.floor(Math.random() * (MAX_XP - MIN_XP + 1)) + MIN_XP;
-      user.xp += earnedXP;
       user.lastMessageTime = currentTime;
 
-      // Level up threshold calculation: 100 * level^2
-      const levelThreshold = 100 * user.level * user.level;
-      if (user.xp >= levelThreshold) {
-        user.level += 1;
-        user.xp = 0;
-
+      // Overflow past the threshold carries into the next level
+      if (applyXp(user, earnedXP) > 0) {
         // Store the message that triggered the level-up
         await LevelUpMessage.create({
           userId: message.author.id,

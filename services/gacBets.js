@@ -1,9 +1,14 @@
 /**
  * GAC betting: before Lucas posts his excuse, people bet XP on what it'll be
- * about. When /gac runs, Gemini classifies the excuse and bets are settled.
+ * about. The wager is taken from the bettor's XP when the bet is placed, so
+ * levelling up before settlement can't dodge a loss. When /gac runs, Gemini
+ * classifies the excuse and winners get their stake back plus winnings.
  */
-const { GACBet, User } = require('../models');
+const { Op } = require('sequelize');
+const { GACBet, User, sequelize } = require('../models');
 const { generateText } = require('./gemini');
+const { applyXp } = require('../utils/xp');
+const { dayKey } = require('../utils/dayKey');
 
 const CATEGORIES = {
     pets: '🐾 Pets & Animals',
@@ -41,13 +46,33 @@ Reply with only the category key (e.g. "pets"), nothing else.`;
     }
 }
 
-/** Add (or remove) XP, carrying any overflow through level-ups */
-function applyXp(user, delta) {
-    user.xp = Math.max(0, user.xp + delta);
-    while (user.xp >= 100 * user.level * user.level) {
-        user.xp -= 100 * user.level * user.level;
-        user.level++;
-    }
+/**
+ * Place or change today's bet, holding the wager out of the user's XP.
+ * Changing a bet refunds the old wager before taking the new one.
+ * @returns {Promise<{ error?: string, changed?: boolean }>}
+ */
+async function placeBet(discordUser, date, category, wager) {
+    return sequelize.transaction(async transaction => {
+        const lock = { transaction, lock: transaction.LOCK.UPDATE };
+        const user = await User.findByPk(discordUser.id, lock);
+        const existing = await GACBet.findOne({ where: { date, userId: discordUser.id }, ...lock });
+
+        const available = (user?.xp ?? 0) + (existing ? existing.wager : 0);
+        if (!user || wager > available) {
+            return { error: `You only have **${available} XP** toward your next level to bet with. Go chat some more. 💬` };
+        }
+
+        user.xp = available - wager;
+        await user.save({ transaction });
+
+        if (existing) {
+            await existing.update({ category, wager }, { transaction });
+        }
+        else {
+            await GACBet.create({ date, userId: discordUser.id, username: discordUser.username, category, wager }, { transaction });
+        }
+        return { changed: Boolean(existing) };
+    });
 }
 
 /**
@@ -64,21 +89,46 @@ async function settleBets(date, excuse) {
     const lines = [];
 
     for (const bet of bets) {
-        const user = await User.findByPk(bet.userId);
         const won = bet.category === category;
-        // Can't lose more XP than you currently hold
-        const payout = won ? bet.wager * WIN_MULTIPLIER : -Math.min(bet.wager, user?.xp ?? 0);
+        // Net XP change: the stake was already taken when the bet was placed
+        const payout = won ? bet.wager * WIN_MULTIPLIER : -bet.wager;
+        let levelsGained = 0;
 
-        if (user) {
-            applyXp(user, payout);
-            await user.save();
+        if (won) {
+            const user = await User.findByPk(bet.userId);
+            if (user) {
+                levelsGained = applyXp(user, bet.wager + payout);
+                await user.save();
+            }
         }
         await bet.update({ resolved: true, payout });
 
-        lines.push(won ? `✅ <@${bet.userId}> +${payout} XP` : `❌ <@${bet.userId}> ${payout} XP`);
+        const levelUp = levelsGained > 0 ? ` ⬆️ level up!` : '';
+        lines.push(won ? `✅ <@${bet.userId}> +${payout} XP${levelUp}` : `❌ <@${bet.userId}> ${payout} XP`);
     }
 
     return `🎲 **Betting results** — the excuse was **${CATEGORIES[category]}**\n${lines.join('\n')}`;
 }
 
-module.exports = { CATEGORIES, CATEGORY_CHOICES, WIN_MULTIPLIER, classifyExcuse, settleBets };
+/** Return held wagers for any earlier day where nobody ran /gac */
+async function refundStaleBets() {
+    const stale = await GACBet.findAll({ where: { resolved: false, date: { [Op.ne]: dayKey() } } });
+    for (const bet of stale) {
+        const user = await User.findByPk(bet.userId);
+        if (user) {
+            applyXp(user, bet.wager);
+            await user.save();
+        }
+        await bet.update({ resolved: true, payout: 0 });
+    }
+    if (stale.length > 0) console.log(`🎲 Refunded ${stale.length} unsettled GAC bet(s)`);
+}
+
+module.exports = {
+    CATEGORIES, CATEGORY_CHOICES, WIN_MULTIPLIER, classifyExcuse, placeBet, settleBets,
+    gacBetRefundJob: {
+        name: 'gac-bet-refunds',
+        hour: 0,
+        run: refundStaleBets,
+    },
+};

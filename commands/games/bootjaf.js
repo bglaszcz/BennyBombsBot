@@ -19,6 +19,7 @@ module.exports = {
 
         try {
             await BootJaf.create({
+                userId: interaction.user.id,
                 username: interaction.user.username,
                 usage_count: bootJafCountDisplay,
             });

@@ -36,7 +36,8 @@ module.exports = {
             const stats = await MapTapScore.findAll({
                 attributes: [
                     'userId',
-                    'username',
+                    // One row per user even if they renamed; any of their usernames will do
+                    [fn('MAX', col('username')), 'username'],
                     [fn('COUNT', col('id')), 'totalGames'],
                     [fn('AVG', col('finalScore')), 'avgScore'],
                     [fn('MAX', col('finalScore')), 'bestScore'],
@@ -44,7 +45,7 @@ module.exports = {
                     [fn('SUM', col('finalScore')), 'totalScore'],
                 ],
                 where: dateFilter,
-                group: ['userId', 'username'],
+                group: ['userId'],
                 raw: true,
             });
 

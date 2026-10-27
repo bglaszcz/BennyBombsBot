@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { GACBet, GACMessage, User } = require('../../models');
-const { CATEGORIES, CATEGORY_CHOICES, WIN_MULTIPLIER } = require('../../services/gacBets');
+const { GACBet, GACMessage } = require('../../models');
+const { CATEGORIES, CATEGORY_CHOICES, WIN_MULTIPLIER, placeBet } = require('../../services/gacBets');
+const { dayKey } = require('../../utils/dayKey');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -21,34 +22,22 @@ module.exports = {
 	async execute(interaction) {
 		const category = interaction.options.getString('category');
 		const wager = interaction.options.getInteger('wager');
-		const date = new Date().toLocaleDateString();
+		const date = dayKey();
 
 		if (await GACMessage.findOne({ where: { date } })) {
 			return interaction.reply({ content: 'Too late — Lucas already made his excuse today. Bets are closed. 🔒', flags: MessageFlags.Ephemeral });
 		}
 
-		const user = await User.findByPk(interaction.user.id);
-		const available = user?.xp ?? 0;
-		if (wager > available) {
-			return interaction.reply({
-				content: `You only have **${available} XP** toward your next level to bet with. Go chat some more. 💬`,
-				flags: MessageFlags.Ephemeral,
-			});
-		}
-
-		const existing = await GACBet.findOne({ where: { date, userId: interaction.user.id } });
-		if (existing) {
-			await existing.update({ category, wager });
-		}
-		else {
-			await GACBet.create({ date, userId: interaction.user.id, username: interaction.user.username, category, wager });
+		const result = await placeBet(interaction.user, date, category, wager);
+		if (result.error) {
+			return interaction.reply({ content: result.error, flags: MessageFlags.Ephemeral });
 		}
 
 		const totalBets = await GACBet.count({ where: { date } });
 
 		return interaction.reply(
-			`🎲 ${interaction.user} ${existing ? 'changed their bet to' : 'bet'} **${wager} XP** that Lucas's excuse involves **${CATEGORIES[category]}**.\n` +
-			`*Win pays ${WIN_MULTIPLIER}x. ${totalBets} bet${totalBets !== 1 ? 's' : ''} on the table — settled when someone runs /gac.*`,
+			`🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'bet'} **${wager} XP** that Lucas's excuse involves **${CATEGORIES[category]}**.\n` +
+			`*Wager is held until settlement; a win returns it plus ${WIN_MULTIPLIER}x. ${totalBets} bet${totalBets !== 1 ? 's' : ''} on the table — settled when someone runs /gac.*`,
 		);
 	},
 };

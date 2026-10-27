@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { GMCMessage, sequelize } = require('../../models');
-const { getNicknameByUsername } = require('../../utils/getNickname');
+const { getNickname } = require('../../utils/getNickname');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -11,8 +11,9 @@ module.exports = {
       // Count per user plus their average time of day (America/Chicago) in one pass
       const userStats = await GMCMessage.findAll({
         attributes: [
-          'username',
-          [sequelize.fn('COUNT', sequelize.col('username')), 'triggerCount'],
+          'userId',
+          [sequelize.fn('MAX', sequelize.col('username')), 'username'],
+          [sequelize.fn('COUNT', sequelize.col('id')), 'triggerCount'],
           [
             sequelize.literal(`
               TO_CHAR(
@@ -25,7 +26,7 @@ module.exports = {
             'averageTimeOfDay',
           ],
         ],
-        group: ['username'],
+        group: ['userId'],
         order: [[sequelize.literal('"triggerCount"'), 'DESC']],
         raw: true,
       });
@@ -36,7 +37,7 @@ module.exports = {
 
       const response = userStats
         .map(stats =>
-          `**User:** ${getNicknameByUsername(stats.username)}\n` +
+          `**User:** ${getNickname(stats.userId, stats.username)}\n` +
           `**Trigger Count:** ${stats.triggerCount}\n` +
           `**Average Time of Day:** ${stats.averageTimeOfDay ?? 'N/A'}`,
         )

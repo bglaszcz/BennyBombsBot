@@ -1,7 +1,9 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { UniqueConstraintError } = require('sequelize');
 const { GACMessage } = require('../../models');
 const { generateText } = require('../../services/gemini');
 const { settleBets } = require('../../services/gacBets');
+const { dayKey } = require('../../utils/dayKey');
 
 const FALLBACK_EXCUSES = [
   "My new smart doorbell's installation manual is in Swedish and I'm the only one who speaks Swedish in a 3-mile radius.",
@@ -71,7 +73,7 @@ module.exports = {
     .setDescription('Lucas needs to leave work early again...')
     .addStringOption(option =>
       option.setName('mode')
-        .setDescription('Run in test mode')
+        .setDescription('Run in test mode (admins only)')
         .addChoices(
           { name: 'Normal', value: 'normal' },
           { name: 'Test', value: 'test' },
@@ -80,9 +82,14 @@ module.exports = {
 
   async execute(interaction) {
     const today = new Date();
-    const todayString = today.toLocaleDateString();
+    const todayString = dayKey(today);
     const currentHour = today.getHours();
     const isTestMode = interaction.options.getString('mode') === 'test';
+
+    // Test mode skips the time and once-a-day limits, so each use is a free Gemini call
+    if (isTestMode && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      return interaction.reply({ content: 'Test mode is for admins only. 🔒', flags: MessageFlags.Ephemeral });
+    }
 
     // Check if current time is between 12pm and 4pm (skip in test mode)
     if (!isTestMode && currentHour < 12) {
@@ -124,12 +131,20 @@ module.exports = {
 
     let betResults = null;
     if (!isTestMode) {
-      await GACMessage.create({
-        date: todayString,
-        username: interaction.user.username,
-        emojis: '',
-        excuse,
-      });
+      try {
+        await GACMessage.create({
+          date: todayString,
+          userId: interaction.user.id,
+          username: interaction.user.username,
+          emojis: '',
+          excuse,
+        });
+      }
+      catch (error) {
+        if (!(error instanceof UniqueConstraintError)) throw error;
+        // Someone else's /gac finished while Gemini was writing ours
+        return interaction.editReply('Lucas just made his excuse a moment ago — scroll up! 🏃');
+      }
       betResults = await settleBets(todayString, excuse);
     }
 

@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
     return sequelize.define('GACBet', {
-        // Same toLocaleDateString() key GACMessage uses
+        // Same utils/dayKey key GACMessage uses
         date: {
             type: DataTypes.STRING,
             allowNull: false,

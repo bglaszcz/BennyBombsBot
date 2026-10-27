@@ -1,7 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Emojis = require('../../utils/emojis.js'); // Import the array of emojis
 
+const { UniqueConstraintError } = require('sequelize');
 const { GMCMessage } = require('../../models');
+const { dayKey } = require('../../utils/dayKey');
 
 /**
  * Special dates configuration for GMC command
@@ -140,7 +142,7 @@ module.exports = {
     .setDescription('Wish the crew good morning!'),
   async execute(interaction) {
     const today = new Date();
-    const todayString = today.toLocaleDateString(); // For database comparison
+    const todayString = dayKey(today);
 
     // Check for special date
     const specialDate = getSpecialDate(today);
@@ -178,12 +180,19 @@ module.exports = {
           selectedEmojis = [...emojiIndices].map(index => emojis[index]);
         }
 
-        // Create a new GMCMessage in the database
-        await GMCMessage.create({
-          date: todayString,
-          username: interaction.user.username, // Include the username in the record
-          emojis: selectedEmojis.join(''),
-        });
+        // Create a new GMCMessage in the database. The unique date column
+        // settles two people running /gmc at the same moment.
+        try {
+          await GMCMessage.create({
+            date: todayString,
+            userId: interaction.user.id,
+            username: interaction.user.username,
+            emojis: selectedEmojis.join(''),
+          });
+        } catch (error) {
+          if (!(error instanceof UniqueConstraintError)) throw error;
+          return interaction.reply('Too slow! Someone just beat you to wishing the crew good morning. 🏃');
+        }
 
         // Build the GMC message (or custom override like GMF)
         const gmcLetters = specialDate?.gmcOverride || 'GMC';

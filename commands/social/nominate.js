@@ -95,10 +95,9 @@ async function handleLeaderboard(interaction, currentYear) {
 		where: whereClause,
 		attributes: [
 			'nomineeUserId',
-			'nomineeUsername',
 			[sequelize.fn('COUNT', sequelize.col('nomineeUserId')), 'nominationCount'],
 		],
-		group: ['nomineeUserId', 'nomineeUsername'],
+		group: ['nomineeUserId'],
 		order: [[sequelize.literal('"nominationCount"'), 'DESC']],
 		limit: 10,
 	});

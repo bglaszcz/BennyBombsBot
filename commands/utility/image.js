@@ -24,7 +24,7 @@ module.exports = {
 
     const usedToday = await OpenAIAPIUsage.count({
       where: {
-        username: interaction.user.username,
+        userId: interaction.user.id,
         type: 'image',
         createdAt: { [Op.gte]: startOfToday() },
       },
@@ -42,6 +42,7 @@ module.exports = {
       }
 
       await OpenAIAPIUsage.create({
+        userId: interaction.user.id,
         username: interaction.user.username,
         prompt: userPrompt.slice(0, 255),
         type: 'image',

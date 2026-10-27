@@ -4,6 +4,7 @@ const { scheduleDaily, startScheduler } = require('../services/scheduler');
 const { wordleReminderJob } = require('../services/wordleReminderScheduler');
 const { gazetteJob } = require('../services/gazette');
 const { weeklyChampionsJob } = require('../services/weeklyChampions');
+const { gacBetRefundJob } = require('../services/gacBets');
 
 function sweepAllMemories() {
 	const userIds = userMemory.getAllUserIds();
@@ -30,6 +31,7 @@ module.exports = {
 		scheduleDaily(wordleReminderJob);
 		scheduleDaily(gazetteJob);
 		scheduleDaily(weeklyChampionsJob);
+		scheduleDaily(gacBetRefundJob);
 		startScheduler(client);
 	},
 };

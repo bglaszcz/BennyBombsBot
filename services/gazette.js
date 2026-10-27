@@ -7,7 +7,8 @@ const { Op, fn, col, where } = require('sequelize');
 const { WordleScore, MapTapScore, GMCMessage, GACMessage, OutOfContext, sequelize } = require('../models');
 const { channels, schedule } = require('../config/settings');
 const { getWordleNumber } = require('../utils/wordle');
-const { getNickname, getNicknameByUsername } = require('../utils/getNickname');
+const { getNickname } = require('../utils/getNickname');
+const { dayKey } = require('../utils/dayKey');
 const { localDateKey } = require('./scheduler');
 
 function namesList(rows) {
@@ -39,14 +40,14 @@ async function mapTapSection(yesterday) {
 }
 
 async function gmcSection(yesterday) {
-    const gmc = await GMCMessage.findOne({ where: { date: yesterday.toLocaleDateString() } });
+    const gmc = await GMCMessage.findOne({ where: { date: dayKey(yesterday) } });
     if (!gmc) return '😴 Nobody wished the crew good morning. Shameful.';
     const unix = Math.floor(gmc.createdAt.getTime() / 1000);
-    return `${gmc.emojis} — **${getNicknameByUsername(gmc.username)}** at <t:${unix}:t>`;
+    return `${gmc.emojis} — **${getNickname(gmc.userId, gmc.username)}** at <t:${unix}:t>`;
 }
 
 async function gacSection(yesterday) {
-    const gac = await GACMessage.findOne({ where: { date: yesterday.toLocaleDateString() } });
+    const gac = await GACMessage.findOne({ where: { date: dayKey(yesterday) } });
     if (!gac) return null;
     const excuse = gac.excuse.length > 300 ? `${gac.excuse.slice(0, 297)}...` : gac.excuse;
     return `*"${excuse}"*`;

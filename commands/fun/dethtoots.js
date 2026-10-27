@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { DethToot, DethTootLog, sequelize } = require('../../models');
 const { formatDuration } = require('../../utils/formatDuration');
-const { getNickname, getNicknameByUsername } = require('../../utils/getNickname');
+const { getNickname } = require('../../utils/getNickname');
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const rank = i => MEDALS[i] || `\`${i + 1}.\``;
@@ -16,8 +16,8 @@ module.exports = {
 			// Oldest "last toot" first = longest current drought
 			DethToot.findAll({ order: [['lastTootDate', 'ASC']], limit: 10, raw: true }),
 			DethTootLog.findAll({
-				attributes: ['userId', 'username', [sequelize.fn('COUNT', sequelize.col('id')), 'toots']],
-				group: ['userId', 'username'],
+				attributes: ['userId', [sequelize.fn('MAX', sequelize.col('username')), 'username'], [sequelize.fn('COUNT', sequelize.col('id')), 'toots']],
+				group: ['userId'],
 				order: [[sequelize.literal('"toots"'), 'DESC']],
 				limit: 10,
 				raw: true,
@@ -30,7 +30,7 @@ module.exports = {
 
 		const now = Date.now();
 		const droughts = latest
-			.map((row, i) => `${rank(i)} **${getNicknameByUsername(row.username)}** — ${formatDuration(now - new Date(row.lastTootDate), 2)} clean`)
+			.map((row, i) => `${rank(i)} **${getNickname(row.userId, row.username)}** — ${formatDuration(now - new Date(row.lastTootDate), 2)} clean`)
 			.join('\n');
 
 		const embed = new EmbedBuilder()

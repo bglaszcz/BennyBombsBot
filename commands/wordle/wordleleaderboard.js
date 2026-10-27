@@ -37,13 +37,14 @@ module.exports = {
             const stats = await WordleScore.findAll({
                 attributes: [
                     'userId',
-                    'username',
+                    // One row per user even if they renamed; any of their usernames will do
+                    [fn('MAX', col('username')), 'username'],
                     [fn('COUNT', col('id')), 'totalGames'],
                     [fn('SUM', literal('CASE WHEN score <= 6 THEN 1 ELSE 0 END')), 'wins'],
                     [fn('AVG', literal('CASE WHEN score <= 6 THEN score ELSE 7 END')), 'avgScore'],
                 ],
                 where: dateFilter,
-                group: ['userId', 'username'],
+                group: ['userId'],
                 raw: true,
             });
 

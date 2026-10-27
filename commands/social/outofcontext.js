@@ -194,10 +194,9 @@ module.exports = {
 					where: { guildId: interaction.guildId },
 					attributes: [
 						'quotedUserId',
-						'quotedUsername',
 						[sequelize.fn('COUNT', sequelize.col('quotedUserId')), 'quoteCount'],
 					],
-					group: ['quotedUserId', 'quotedUsername'],
+					group: ['quotedUserId'],
 					// Quoted: Postgres folds unquoted identifiers to lowercase
 					order: [[sequelize.literal('"quoteCount"'), 'DESC']],
 					limit: 10,
