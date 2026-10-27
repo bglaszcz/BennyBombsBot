@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
-const { MapTapScore } = require('../models');
-const { channels } = require('../config/settings');
+const { MapTapScore, User } = require('../models');
+const { channels, economy } = require('../config/settings');
+const { settleScoreMarket } = require('../services/bets');
 const { parseMapTapShare } = require('../utils/parseMapTap');
 
 module.exports = {
@@ -28,7 +29,10 @@ module.exports = {
                 },
             });
 
-            if (created) await message.react('🗺️');
+            if (!created) return;
+            await message.react('🗺️');
+            await User.increment('coins', { by: economy.scorePostBonus, where: { userId: message.author.id } });
+            await settleScoreMarket(message.client, 'maptap', message.author.id, parsed.puzzleDate, parsed.finalScore);
         }
         catch (error) {
             console.error('Error storing MapTap score:', error);

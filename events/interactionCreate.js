@@ -41,9 +41,9 @@ async function replyWithError(interaction) {
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
-		// Buttons / select menus: customId is "<prefix>:<args...>", routed to the
-		// handler a command registered under `components`
-		if (interaction.isMessageComponent()) {
+		// Buttons / select menus / modal submits: customId is "<prefix>:<args...>",
+		// routed to the handler a command registered under `components`
+		if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
 			const prefix = interaction.customId.split(':')[0];
 			const handler = interaction.client.components.get(prefix);
 			// No handler means a collector elsewhere owns this component

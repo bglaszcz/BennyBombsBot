@@ -4,6 +4,8 @@ const Emojis = require('../../utils/emojis.js'); // Import the array of emojis
 const { UniqueConstraintError } = require('sequelize');
 const { GMCMessage } = require('../../models');
 const { dayKey } = require('../../utils/dayKey');
+const { getGmcSponsor } = require('../../services/shop');
+const { getNickname } = require('../../utils/getNickname');
 
 /**
  * Special dates configuration for GMC command
@@ -164,9 +166,12 @@ module.exports = {
         await interaction.reply(replyContent);
       } else {
         let selectedEmojis;
+        // Someone may have bought today's emojis in the shop — that beats holidays too
+        const sponsor = await getGmcSponsor(today);
 
-        // Use special date emojis if configured, otherwise random selection
-        if (specialDate?.emojis) {
+        if (sponsor) {
+          selectedEmojis = [...sponsor.emojis];
+        } else if (specialDate?.emojis) {
           selectedEmojis = [...specialDate.emojis];
         } else {
           const emojis = Emojis; // Use the imported array of emojis
@@ -210,7 +215,11 @@ module.exports = {
         // Add prefix/suffix text if configured for special date
         const prefix = specialDate?.prefixText || '';
         const suffix = specialDate?.suffixText || '';
-        const replyContent = prefix + gmcCore + suffix;
+        const sponsorCredit = sponsor
+          ? `
+-# 🛒 Today's emojis sponsored by ${getNickname(sponsor.buyerId, 'a mystery donor')}`
+          : '';
+        const replyContent = prefix + gmcCore + suffix + sponsorCredit;
 
         // Send the reply back to the interaction
         await interaction.reply(replyContent);

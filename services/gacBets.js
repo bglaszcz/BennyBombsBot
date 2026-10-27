@@ -1,14 +1,13 @@
 /**
- * GAC betting: before Lucas posts his excuse, people bet XP on what it'll be
- * about. The wager is taken from the bettor's XP when the bet is placed, so
- * levelling up before settlement can't dodge a loss. When /gac runs, Gemini
- * classifies the excuse and winners get their stake back plus winnings.
+ * GAC betting: before Lucas posts his excuse, people bet Bomb Bucks on what
+ * it'll be about. Runs on the shared betting service — each day is one
+ * fixed-odds market. When /gac runs, Gemini classifies the excuse and the
+ * market settles; if nobody runs /gac, the midnight sweep refunds everyone.
  */
-const { Op } = require('sequelize');
-const { GACBet, User, sequelize } = require('../models');
+const { BetMarket } = require('../models');
 const { generateText } = require('./gemini');
-const { applyXp } = require('../utils/xp');
-const { dayKey } = require('../utils/dayKey');
+const { findOrCreateMarket, resolveMarket, endOfToday } = require('./bets');
+const { betting } = require('../config/settings');
 
 const CATEGORIES = {
     pets: '🐾 Pets & Animals',
@@ -23,8 +22,7 @@ const CATEGORIES = {
 
 const CATEGORY_CHOICES = Object.entries(CATEGORIES).map(([value, name]) => ({ name, value }));
 
-// Net profit multiplier on a correct bet (8 categories, so this is still house-favoured)
-const WIN_MULTIPLIER = 4;
+const marketKey = date => `gac:${date}`;
 
 async function classifyExcuse(excuse) {
     const prompt = `Classify this excuse for leaving work early into exactly ONE category.
@@ -46,89 +44,29 @@ Reply with only the category key (e.g. "pets"), nothing else.`;
     }
 }
 
-/**
- * Place or change today's bet, holding the wager out of the user's XP.
- * Changing a bet refunds the old wager before taking the new one.
- * @returns {Promise<{ error?: string, changed?: boolean }>}
- */
-async function placeBet(discordUser, date, category, wager) {
-    return sequelize.transaction(async transaction => {
-        const lock = { transaction, lock: transaction.LOCK.UPDATE };
-        const user = await User.findByPk(discordUser.id, lock);
-        const existing = await GACBet.findOne({ where: { date, userId: discordUser.id }, ...lock });
-
-        const available = (user?.xp ?? 0) + (existing ? existing.wager : 0);
-        if (!user || wager > available) {
-            return { error: `You only have **${available} XP** toward your next level to bet with. Go chat some more. 💬` };
-        }
-
-        user.xp = available - wager;
-        await user.save({ transaction });
-
-        if (existing) {
-            await existing.update({ category, wager }, { transaction });
-        }
-        else {
-            await GACBet.create({ date, userId: discordUser.id, username: discordUser.username, category, wager }, { transaction });
-        }
-        return { changed: Boolean(existing) };
+/** Today's GAC market (one per day) */
+function openGacMarket(date, channelId) {
+    return findOrCreateMarket(marketKey(date), {
+        type: 'gac',
+        question: "What will Lucas's excuse be about?",
+        options: Object.entries(CATEGORIES).map(([value, label]) => ({ value, label, multiplier: betting.gacMultiplier })),
+        closesAt: endOfToday(),
+        channelId,
     });
 }
 
 /**
- * Settle every open bet for a day.
- * @param {string} date - GAC date key (toLocaleDateString)
- * @param {string} excuse
+ * Settle the day's bets against the excuse.
+ * @param {string} date - GAC day key
  * @returns {Promise<string|null>} Results text for the /gac reply, or null if nobody bet
  */
 async function settleBets(date, excuse) {
-    const bets = await GACBet.findAll({ where: { date, resolved: false } });
-    if (bets.length === 0) return null;
+    const market = await BetMarket.findOne({ where: { key: marketKey(date), status: 'open' } });
+    if (!market) return null;
 
     const category = await classifyExcuse(excuse);
-    const lines = [];
-
-    for (const bet of bets) {
-        const won = bet.category === category;
-        // Net XP change: the stake was already taken when the bet was placed
-        const payout = won ? bet.wager * WIN_MULTIPLIER : -bet.wager;
-        let levelsGained = 0;
-
-        if (won) {
-            const user = await User.findByPk(bet.userId);
-            if (user) {
-                levelsGained = applyXp(user, bet.wager + payout);
-                await user.save();
-            }
-        }
-        await bet.update({ resolved: true, payout });
-
-        const levelUp = levelsGained > 0 ? ` ⬆️ level up!` : '';
-        lines.push(won ? `✅ <@${bet.userId}> +${payout} XP${levelUp}` : `❌ <@${bet.userId}> ${payout} XP`);
-    }
-
-    return `🎲 **Betting results** — the excuse was **${CATEGORIES[category]}**\n${lines.join('\n')}`;
+    const result = await resolveMarket(market.id, category);
+    return result?.text ?? null;
 }
 
-/** Return held wagers for any earlier day where nobody ran /gac */
-async function refundStaleBets() {
-    const stale = await GACBet.findAll({ where: { resolved: false, date: { [Op.ne]: dayKey() } } });
-    for (const bet of stale) {
-        const user = await User.findByPk(bet.userId);
-        if (user) {
-            applyXp(user, bet.wager);
-            await user.save();
-        }
-        await bet.update({ resolved: true, payout: 0 });
-    }
-    if (stale.length > 0) console.log(`🎲 Refunded ${stale.length} unsettled GAC bet(s)`);
-}
-
-module.exports = {
-    CATEGORIES, CATEGORY_CHOICES, WIN_MULTIPLIER, classifyExcuse, placeBet, settleBets,
-    gacBetRefundJob: {
-        name: 'gac-bet-refunds',
-        hour: 0,
-        run: refundStaleBets,
-    },
-};
+module.exports = { CATEGORIES, CATEGORY_CHOICES, classifyExcuse, openGacMarket, settleBets };

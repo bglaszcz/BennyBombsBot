@@ -4,6 +4,7 @@ const settings = require('../config/settings');
 const { applyXp } = require('../utils/xp');
 
 const { min: MIN_XP, max: MAX_XP, cooldownMs: COOLDOWN_MS } = settings.xp;
+const { chatMin: MIN_COINS, chatMax: MAX_COINS, levelUpBonus: LEVEL_UP_COINS } = settings.economy;
 
 // userId -> last time XP was awarded. Checked before touching the DB so
 // messages inside the cooldown cost nothing. The DB's lastMessageTime still
@@ -39,9 +40,11 @@ module.exports = {
       // Award random XP between MIN_XP and MAX_XP
       const earnedXP = Math.floor(Math.random() * (MAX_XP - MIN_XP + 1)) + MIN_XP;
       user.lastMessageTime = currentTime;
+      let earnedCoins = Math.floor(Math.random() * (MAX_COINS - MIN_COINS + 1)) + MIN_COINS;
 
       // Overflow past the threshold carries into the next level
       if (applyXp(user, earnedXP) > 0) {
+        earnedCoins += LEVEL_UP_COINS;
         // Store the message that triggered the level-up
         await LevelUpMessage.create({
           userId: message.author.id,
@@ -77,11 +80,14 @@ module.exports = {
           `🛠️ Lucas might be Mr. Fix-It, but ${message.author.username} just finessed their way to level ${user.level} with a little help from the squad. Blessings all around! 🔧✨`,
         ];
         const randomMessage = levelUpMessages[Math.floor(Math.random() * levelUpMessages.length)];
-        await message.channel.send(randomMessage);
+        await message.channel.send(`${randomMessage}
+-# +${LEVEL_UP_COINS} ${settings.economy.emoji} level-up bonus`);
         console.log(`${message.author.tag} reached level ${user.level}.`);
       }
 
       await user.save();
+      // Atomic increment so this can't overwrite a bet or purchase happening at the same moment
+      await user.increment('coins', { by: earnedCoins });
     } catch (error) {
       console.error('Error processing message:', error);
     }

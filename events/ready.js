@@ -1,10 +1,12 @@
 const { Events } = require('discord.js');
 const userMemory = require('../services/userMemory');
-const { scheduleDaily, startScheduler } = require('../services/scheduler');
+const { scheduleDaily, scheduleRecurring, startScheduler } = require('../services/scheduler');
 const { wordleReminderJob } = require('../services/wordleReminderScheduler');
 const { gazetteJob } = require('../services/gazette');
 const { weeklyChampionsJob } = require('../services/weeklyChampions');
-const { gacBetRefundJob } = require('../services/gacBets');
+const { marketSweepJob } = require('../services/bets');
+const { nicknameExpiryJob } = require('../services/shop');
+const { resumeTrials } = require('../services/trial');
 
 function sweepAllMemories() {
 	const userIds = userMemory.getAllUserIds();
@@ -31,7 +33,10 @@ module.exports = {
 		scheduleDaily(wordleReminderJob);
 		scheduleDaily(gazetteJob);
 		scheduleDaily(weeklyChampionsJob);
-		scheduleDaily(gacBetRefundJob);
+		scheduleRecurring(marketSweepJob);
+		scheduleRecurring(nicknameExpiryJob);
 		startScheduler(client);
+
+		resumeTrials(client).catch(error => console.error('Failed to resume trials:', error));
 	},
 };

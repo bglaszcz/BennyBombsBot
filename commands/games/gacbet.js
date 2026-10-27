@@ -1,12 +1,15 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { GACBet, GACMessage } = require('../../models');
-const { CATEGORIES, CATEGORY_CHOICES, WIN_MULTIPLIER, placeBet } = require('../../services/gacBets');
+const { GACMessage, Bet } = require('../../models');
+const { CATEGORIES, CATEGORY_CHOICES, openGacMarket } = require('../../services/gacBets');
+const { placeBet } = require('../../services/bets');
+const { formatCoins } = require('../../services/economy');
+const { betting } = require('../../config/settings');
 const { dayKey } = require('../../utils/dayKey');
 
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('gacbet')
-		.setDescription('Bet XP on what Lucas\'s excuse will be about today')
+		.setDescription('Bet Bomb Bucks on what Lucas\'s excuse will be about today')
 		.addStringOption(option => option
 			.setName('category')
 			.setDescription('What will the excuse involve?')
@@ -14,9 +17,9 @@ module.exports = {
 			.addChoices(...CATEGORY_CHOICES))
 		.addIntegerOption(option => option
 			.setName('wager')
-			.setDescription('XP to wager (from your current level progress)')
-			.setMinValue(5)
-			.setMaxValue(1000)
+			.setDescription('Bomb Bucks to wager')
+			.setMinValue(betting.minWager)
+			.setMaxValue(betting.maxWager)
 			.setRequired(true)),
 
 	async execute(interaction) {
@@ -28,16 +31,17 @@ module.exports = {
 			return interaction.reply({ content: 'Too late — Lucas already made his excuse today. Bets are closed. 🔒', flags: MessageFlags.Ephemeral });
 		}
 
-		const result = await placeBet(interaction.user, date, category, wager);
+		const market = await openGacMarket(date, interaction.channelId);
+		const result = await placeBet(market, interaction.user, category, wager);
 		if (result.error) {
 			return interaction.reply({ content: result.error, flags: MessageFlags.Ephemeral });
 		}
 
-		const totalBets = await GACBet.count({ where: { date } });
+		const totalBets = await Bet.count({ where: { marketId: market.id } });
 
 		return interaction.reply(
-			`🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'bet'} **${wager} XP** that Lucas's excuse involves **${CATEGORIES[category]}**.\n` +
-			`*Wager is held until settlement; a win returns it plus ${WIN_MULTIPLIER}x. ${totalBets} bet${totalBets !== 1 ? 's' : ''} on the table — settled when someone runs /gac.*`,
+			`🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'bet'} ${formatCoins(wager)} that Lucas's excuse involves **${CATEGORIES[category]}**.\n` +
+			`*A win returns the stake plus ${betting.gacMultiplier}x. ${totalBets} bet${totalBets !== 1 ? 's' : ''} on the table — settled when someone runs /gac.*`,
 		);
 	},
 };

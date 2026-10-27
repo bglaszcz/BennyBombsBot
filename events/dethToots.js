@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const { DethToot, DethTootLog } = require('../models');
 const { formatDuration } = require('../utils/formatDuration');
+const { settleDethTootMarket } = require('../services/bets');
 
 module.exports = {
   name: Events.MessageCreate,
@@ -37,6 +38,7 @@ module.exports = {
       });
 
       await message.channel.send(responseMessage);
+      await settleDethTootMarket(message.client, message.author.id);
     }
     catch (error) {
       console.error('Error handling deth toot:', error);

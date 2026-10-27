@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
-const { WordleScore } = require('../models');
-const { channels } = require('../config/settings');
+const { WordleScore, User } = require('../models');
+const { channels, economy } = require('../config/settings');
+const { settleScoreMarket } = require('../services/bets');
 const { parseWordleShare } = require('../utils/wordle');
 
 module.exports = {
@@ -28,7 +29,10 @@ module.exports = {
                 },
             });
 
-            if (created) await message.react('📊');
+            if (!created) return;
+            await message.react('📊');
+            await User.increment('coins', { by: economy.scorePostBonus, where: { userId: message.author.id } });
+            await settleScoreMarket(message.client, 'wordle', message.author.id, String(parsed.wordleNumber), parsed.score);
         }
         catch (error) {
             console.error('Error storing Wordle score:', error);

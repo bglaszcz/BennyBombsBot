@@ -1,6 +1,7 @@
 /**
- * Minimal daily/weekly job runner. Each job remembers its last run date in
+ * Minimal job runner. Daily/weekly jobs remember their last run date in
  * BotState, so a restart after the scheduled hour doesn't post twice.
+ * Recurring jobs simply run on every tick (every 5 minutes).
  */
 const { getState, setState } = require('./botState');
 
@@ -8,6 +9,7 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 // A weekly job missed because the bot was down still runs if it comes back within this window
 const WEEKLY_CATCH_UP_MS = 24 * 60 * 60 * 1000;
 const jobs = [];
+const recurringJobs = [];
 
 function localDateKey(date = new Date()) {
     return [
@@ -48,6 +50,31 @@ function getDueTime(job, now) {
     return now - due <= WEEKLY_CATCH_UP_MS ? due : null;
 }
 
+/**
+ * @param {Object} job
+ * @param {string} job.name
+ * @param {(client) => Promise<void>} job.run - Runs every tick; must be cheap and idempotent
+ */
+function scheduleRecurring(job) {
+    recurringJobs.push({ ...job, running: false });
+}
+
+async function runRecurring(client) {
+    for (const job of recurringJobs) {
+        if (job.running) continue;
+        job.running = true;
+        try {
+            await job.run(client);
+        }
+        catch (error) {
+            console.error(`Recurring job "${job.name}" failed:`, error);
+        }
+        finally {
+            job.running = false;
+        }
+    }
+}
+
 async function tick(client) {
     const now = new Date();
 
@@ -76,8 +103,9 @@ async function tick(client) {
 }
 
 function startScheduler(client) {
-    setInterval(() => tick(client), CHECK_INTERVAL_MS);
-    tick(client);
+    const runAll = () => tick(client).then(() => runRecurring(client));
+    setInterval(runAll, CHECK_INTERVAL_MS);
+    runAll();
 }
 
-module.exports = { scheduleDaily, startScheduler, localDateKey };
+module.exports = { scheduleDaily, scheduleRecurring, startScheduler, localDateKey };

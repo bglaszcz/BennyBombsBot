@@ -4,6 +4,8 @@ const { GACMessage } = require('../../models');
 const { generateText } = require('../../services/gemini');
 const { settleBets } = require('../../services/gacBets');
 const { dayKey } = require('../../utils/dayKey');
+const { peekRiggedExcuse, consumeRiggedExcuse } = require('../../services/shop');
+const { getNickname } = require('../../utils/getNickname');
 
 const FALLBACK_EXCUSES = [
   "My new smart doorbell's installation manual is in Swedish and I'm the only one who speaks Swedish in a 3-mile radius.",
@@ -12,7 +14,7 @@ const FALLBACK_EXCUSES = [
   "My cat learned how to open doors and has been letting all the neighborhood cats into my house for what appears to be some sort of feline summit.",
 ];
 
-async function generateLucasExcuse(isMayFourth = false) {
+async function generateLucasExcuse(isMayFourth = false, riggedTheme = null) {
   try {
     // Get last 5 excuses from database
     const lastExcuses = await GACMessage.findAll({
@@ -29,9 +31,14 @@ Weave in Star Wars references naturally (e.g. lightsabers, Jedi training, the Fo
 Keep Lucas's clueless middle-manager voice — he takes this very seriously.
 ` : '';
 
+    // Bought in the shop: the excuse has to be about this
+    const riggedInstructions = riggedTheme ? `
+REQUIRED THEME: The excuse MUST clearly be about: "${riggedTheme}". Build the whole excuse around it.
+` : '';
+
     const prompt = `You are Lucas, a middle manager in IT who needs to leave work early.
 Generate a single, creative excuse for why you need to leave work early today.
-${mayFourthInstructions}
+${mayFourthInstructions}${riggedInstructions}
 IMPORTANT: Generate ONLY the reason/excuse itself. Do NOT include any phrases like:
 - "I need to leave early"
 - "I have to depart"
@@ -51,7 +58,7 @@ The excuse should:
 Here are the last 5 excuses that have already been used. DO NOT reuse or be too similar to these:
 ${previousExcuses || "(none yet)"}
 
-${isMayFourth ? '' : 'Explore a wide range of categories: pets, smart home devices, obscure community rules, minor bureaucratic crises, neighbors\' antics, vehicle oddities, or delivery mishaps.\n'}
+${isMayFourth || riggedTheme ? '' : 'Explore a wide range of categories: pets, smart home devices, obscure community rules, minor bureaucratic crises, neighbors\' antics, vehicle oddities, or delivery mishaps.\n'}
 EXAMPLES of correct format (notice they start directly with the situation):
 - "My neighbor's cat got stuck in my car's exhaust pipe and I'm the only one with the right tools to extract it safely."
 - "The artisanal honey I ordered from that obscure beekeeping collective is being delivered during a very specific window, and it requires immediate refrigeration to preserve its delicate floral notes."
@@ -127,7 +134,9 @@ module.exports = {
       }
     }
 
-    const excuse = await generateLucasExcuse(isMayFourth);
+    // Test runs don't use up a rigged theme
+    const rigged = isTestMode ? null : await peekRiggedExcuse();
+    const excuse = await generateLucasExcuse(isMayFourth, rigged?.theme);
 
     let betResults = null;
     if (!isTestMode) {
@@ -145,6 +154,7 @@ module.exports = {
         // Someone else's /gac finished while Gemini was writing ours
         return interaction.editReply('Lucas just made his excuse a moment ago — scroll up! 🏃');
       }
+      if (rigged) await consumeRiggedExcuse();
       betResults = await settleBets(todayString, excuse);
     }
 
@@ -155,6 +165,7 @@ module.exports = {
       ':regional_indicator_g::regional_indicator_a::regional_indicator_c:' +
       mayFourthHeader +
       '\n\n**Lucas:** "Hey team, I need to head out early today. ' + excuse + '"' +
+      (rigged ? `\n\n-# 🕵️ This excuse was rigged by ${getNickname(rigged.buyerId, 'a shadowy figure')}` : '') +
       (betResults ? `\n\n${betResults}` : '') +
       (isTestMode ? '\n\n*⚠️ Test mode - not saved to database*' : '');
 

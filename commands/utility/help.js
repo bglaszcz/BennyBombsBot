@@ -3,6 +3,7 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags, ApplicationCommandOptio
 const CATEGORY_LABELS = {
 	fun: '🤪 Fun',
 	games: '🎮 Games',
+	economy: '💣 Bomb Bucks',
 	wordle: '🟩 Wordle',
 	maptap: '🗺️ MapTap',
 	social: '👥 Social',
@@ -63,7 +64,7 @@ module.exports = {
 		const embed = new EmbedBuilder()
 			.setColor('#0099ff')
 			.setTitle('📖 BennyBombsBot Commands')
-			.setDescription('Use `/help command:<name>` for details. Right-click any message → **Apps** to quote or nominate it.');
+			.setDescription('Use `/help command:<name>` for details. Right-click any message → **Apps** to quote, nominate, or put it on trial.');
 
 		for (const [category, names] of [...byCategory.entries()].sort()) {
 			embed.addFields({ name: CATEGORY_LABELS[category] || category, value: names.sort().join(' ') });

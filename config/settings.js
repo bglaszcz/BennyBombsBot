@@ -48,4 +48,45 @@ module.exports = {
     image: {
         dailyLimitPerUser: 10,
     },
+
+    // Bomb Bucks: a coin balance separate from XP, spent on bets and the shop
+    economy: {
+        name: 'Bomb Bucks',
+        emoji: '💣',
+        // New users start with this; existing users got it when the column was added
+        startingBalance: 250,
+        // Coins per XP-earning message (same 1-minute cooldown as XP)
+        chatMin: 2,
+        chatMax: 4,
+        levelUpBonus: 50,
+        // Posting a new Wordle or MapTap score
+        scorePostBonus: 10,
+    },
+
+    betting: {
+        minWager: 5,
+        maxWager: 1000,
+        // Net winnings multiplier for a correct /gacbet category
+        gacMultiplier: 4,
+        // Fraction of fair odds paid on deth toot bets (below 1 = house edge)
+        dethTootPayoutRate: 0.9,
+        // Over/under lines use a player's last N games
+        lineSampleGames: 30,
+        lineMinGames: 5,
+        // Custom bets left unsettled this long after closing are refunded
+        customSettleGraceHours: 7 * 24,
+    },
+
+    shop: {
+        prices: {
+            gmcEmojis: 150,
+            botNickname: 300,
+            rigExcuse: 500,
+        },
+        botNicknameHours: 24,
+    },
+
+    trial: {
+        votingMinutes: 3,
+    },
 };

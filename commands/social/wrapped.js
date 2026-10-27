@@ -2,12 +2,13 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { Op } = require('sequelize');
 const {
 	User, LevelUpMessage, WordleScore, MapTapScore, GMCMessage, GACMessage,
-	OutOfContext, Nomination, BootJaf, DethTootLog, GACBet,
+	OutOfContext, Nomination, BootJaf, DethTootLog, Bet,
 } = require('../../models');
 const { AWARDS } = require('../../services/nominations');
 const { generateText } = require('../../services/gemini');
 const { calculateStreaks } = require('../../utils/wordle');
 const { getNickname } = require('../../utils/getNickname');
+const { economy } = require('../../config/settings');
 
 /**
  * Gather everything we know about one user for one calendar year.
@@ -34,7 +35,7 @@ async function gatherStats(user, year) {
 		Nomination.count({ where: { nominatorUserId: user.id, year } }),
 		BootJaf.count({ where: { ...byId, createdAt: inYear } }),
 		DethTootLog.count({ where: { ...byId, tootedAt: inYear } }),
-		GACBet.sum('payout', { where: { ...byId, resolved: true, createdAt: inYear } }),
+		Bet.sum('payout', { where: { ...byId, resolved: true, createdAt: inYear } }),
 	]);
 
 	let xpRank = null;
@@ -140,7 +141,7 @@ function buildEmbed(user, name, year, stats, roast) {
 		stats.gacs && `🏃 Triggered **${stats.gacs}** Lucas excuse${stats.gacs !== 1 ? 's' : ''}`,
 		stats.boots && `🥾 Booted jaf ${times(stats.boots)}`,
 		stats.toots && `💨 Logged **${stats.toots}** deth toot${stats.toots !== 1 ? 's' : ''}`,
-		stats.betNet && `🎲 ${stats.betNet > 0 ? 'Won' : 'Lost'} **${Math.abs(stats.betNet)} XP** betting on Lucas`,
+		stats.betNet && `🎲 ${stats.betNet > 0 ? 'Won' : 'Lost'} **${Math.abs(stats.betNet)}** ${economy.emoji} gambling`,
 	].filter(Boolean);
 	if (daily.length > 0) embed.addFields({ name: '📆 The Daily Grind', value: daily.join('\n') });
 
