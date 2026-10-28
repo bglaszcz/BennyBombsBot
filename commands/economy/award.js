@@ -30,12 +30,13 @@ module.exports = {
 			.setName('description')
 			// Discord caps option descriptions at 100 characters
 			.setDescription('Free text, or a Discord message ID to award for that specific message')
-			.setMaxLength(500)),
+			.setMaxLength(500)
+			.setRequired(true)),
 
 	async execute(interaction) {
 		const target = interaction.options.getUser('user');
 		const bucks = interaction.options.getInteger('bucks');
-		const description = interaction.options.getString('description')?.trim() || null;
+		const description = interaction.options.getString('description').trim();
 		const ephemeral = { flags: MessageFlags.Ephemeral };
 
 		if (target.bot) {
@@ -47,7 +48,7 @@ module.exports = {
 
 		// If the description is a message ID, look it up in this channel
 		let linkedMessage = null;
-		if (description && MESSAGE_ID_RE.test(description)) {
+		if (MESSAGE_ID_RE.test(description)) {
 			linkedMessage = await interaction.channel.messages.fetch(description).catch(() => null);
 			if (!linkedMessage) {
 				return interaction.reply({
@@ -91,7 +92,7 @@ module.exports = {
 				: '(no text)';
 			reply += ` for [this message](${linkedMessage.url}):\n> ${text.replace(/\n/g, '\n> ')}`;
 		}
-		else if (description) {
+		else {
 			reply += `: ${description}`;
 		}
 		reply += `\n-# Balances: you ${formatCoins(balances[interaction.user.id])} · ${target.username} ${formatCoins(balances[target.id])}`;
