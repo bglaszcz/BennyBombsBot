@@ -38,12 +38,13 @@ async function betOnPlayer(interaction, type) {
 		return interaction.reply({ content: 'No betting on yourself — that\'s match fixing. 🚔', ...ephemeral });
 	}
 
+	const channelId = bets.betsChannelFor(interaction.channelId);
 	let market;
 	if (type === 'dethtoot') {
-		market = await bets.openDethTootMarket(player, interaction.channelId);
+		market = await bets.openDethTootMarket(player, channelId);
 	}
 	else {
-		const opened = await bets.openScoreMarket(type, player, interaction.channelId);
+		const opened = await bets.openScoreMarket(type, player, channelId);
 		if (opened.error) return interaction.reply({ content: opened.error, ...ephemeral });
 		market = opened.market;
 	}
@@ -52,24 +53,33 @@ async function betOnPlayer(interaction, type) {
 	if (result.error) return interaction.reply({ content: result.error, ...ephemeral });
 
 	const option = market.options.find(o => o.value === choice);
-	const closes = Math.floor(market.closesAt.getTime() / 1000);
-	return interaction.reply(
-		`🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'bet'} ${formatCoins(wager)} on **${option.label}** (${oddsText(option)})\n` +
-		`> ${market.question}\n-# ${type === 'dethtoot' ? `Window closes <t:${closes}:R>` : 'Settles when they post'} • Balance: ${formatCoins(result.balance)}`,
-	);
+
+	// Deth toot bets stay secret until they settle — a public bet could scare (or goad) the target
+	if (type === 'dethtoot') {
+		const closes = Math.floor(market.closesAt.getTime() / 1000);
+		return interaction.reply({
+			content: `🤫 You ${result.changed ? 'changed your bet to' : 'bet'} ${formatCoins(wager)} on **${option.label}** (${oddsText(option)})\n` +
+				`> ${market.question}\n-# Only you can see this. Window closes <t:${closes}:R> • Balance: ${formatCoins(result.balance)}`,
+			...ephemeral,
+		});
+	}
+
+	await bets.postBetRecord(interaction, {
+		content: `🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'bet'} ${formatCoins(wager)} on **${option.label}** (${oddsText(option)})\n` +
+			`> ${market.question}\n-# Settles when they post • Balance: ${formatCoins(result.balance)}`,
+	});
 }
 
 async function createMarket(interaction) {
 	const question = interaction.options.getString('question');
 	const hours = interaction.options.getInteger('hours') ?? 24;
 
-	const market = await bets.createCustomMarket(interaction.user, question, hours, interaction.channelId);
-	const response = await interaction.reply({
+	const market = await bets.createCustomMarket(interaction.user, question, hours, bets.betsChannelFor(interaction.channelId));
+	const message = await bets.postBetRecord(interaction, {
 		content: `🎲 ${interaction.user} opened a bet. Pick a side!`,
 		...await bets.customMarketPayload(market),
-		withResponse: true,
 	});
-	await market.update({ messageId: response.resource.message.id });
+	if (message) await market.update({ messageId: message.id, channelId: message.channelId });
 }
 
 async function settleMarket(interaction) {
@@ -94,11 +104,11 @@ async function settleMarket(interaction) {
 	if (!result) return interaction.reply({ content: 'That one\'s already been settled.', ...ephemeral });
 
 	await bets.refreshMarketPost(interaction.client, result.market);
-	return interaction.reply(result.text ?? `🎲 **${market.question}** settled — nobody had bet on it.`);
+	await bets.postBetRecord(interaction, { content: result.text ?? `🎲 **${market.question}** settled — nobody had bet on it.` });
 }
 
 async function listMarkets(interaction) {
-	const markets = await bets.listOpenMarkets();
+	const markets = await bets.listOpenMarkets(interaction.user.id);
 	if (markets.length === 0) {
 		return interaction.reply({ content: 'No open bets right now. Start one with `/bet create`. 🎲', flags: MessageFlags.Ephemeral });
 	}
@@ -107,7 +117,8 @@ async function listMarkets(interaction) {
 		const closes = `<t:${Math.floor(m.closesAt.getTime() / 1000)}:R>`;
 		const status = m.status === 'locked' ? 'awaiting settlement' : `closes ${closes}`;
 		const link = m.messageId ? ` — [bet here](https://discord.com/channels/${interaction.guildId}/${m.channelId}/${m.messageId})` : '';
-		return `\`#${m.id}\` ${m.question} • ${status}${link}`;
+		const secret = m.type === 'dethtoot' ? ' 🤫 *(secret — only bettors see this)*' : '';
+		return `\`#${m.id}\` ${m.question} • ${status}${link}${secret}`;
 	});
 	return interaction.reply({ content: `🎲 **Open markets**\n${lines.join('\n')}`, flags: MessageFlags.Ephemeral });
 }
@@ -143,7 +154,9 @@ async function handleBetWager(interaction) {
 	const result = await bets.placeBet(market, interaction.user, choice, wager);
 	if (result.error) return interaction.reply({ content: result.error, ...ephemeral });
 
-	await interaction.reply(`🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'put'} ${formatCoins(wager)} on **${bets.optionLabel(market, choice)}**`);
+	await bets.postBetRecord(interaction, {
+		content: `🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'put'} ${formatCoins(wager)} on **${bets.optionLabel(market, choice)}**\n> ${market.question}`,
+	});
 	await bets.refreshMarketPost(interaction.client, market);
 }
 
@@ -162,7 +175,7 @@ module.exports = {
 		[{ name: 'Over', value: 'over' }, { name: 'Under', value: 'under' }]))
 		.addSubcommand(sub => addPlayerAndWager(sub
 			.setName('dethtoot')
-			.setDescription('Will they deth toot in the next 24 hours? Odds based on their history'),
+			.setDescription('Secret bet: will they deth toot in the next 24h? Only you see it until it settles'),
 		[{ name: 'Yes, they\'ll toot', value: 'yes' }, { name: 'No, they stay clean', value: 'no' }]))
 		.addSubcommand(sub => sub
 			.setName('create')

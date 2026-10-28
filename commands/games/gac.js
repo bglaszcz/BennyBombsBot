@@ -3,6 +3,8 @@ const { UniqueConstraintError } = require('sequelize');
 const { GACMessage } = require('../../models');
 const { generateText } = require('../../services/gemini');
 const { settleBets, classifyExcuse } = require('../../services/gacBets');
+const { announce } = require('../../services/bets');
+const { channels } = require('../../config/settings');
 const { dayKey } = require('../../utils/dayKey');
 const { peekRiggedExcuse, consumeRiggedExcuse } = require('../../services/shop');
 const { getNickname } = require('../../utils/getNickname');
@@ -172,6 +174,10 @@ module.exports = {
       (betResults ? `\n\n${betResults}` : '') +
       (isTestMode ? '\n\n*⚠️ Test mode - not saved to database*' : '');
 
-    return interaction.editReply(replyContent);
+    await interaction.editReply(replyContent);
+    // Payouts also go in the bets log
+    if (betResults && channels.bets && channels.bets !== interaction.channelId) {
+      await announce(interaction.client, channels.bets, `🙄 **Today's GAC excuse:** ${excuse}\n\n${betResults}`);
+    }
   },
 };

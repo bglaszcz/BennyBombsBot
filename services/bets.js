@@ -10,12 +10,12 @@
  *
  * Lock order is always market row → user rows, so bets and settlements can't deadlock.
  */
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const { Op, UniqueConstraintError } = require('sequelize');
 const { Bet, BetMarket, WordleScore, MapTapScore, DethTootLog, sequelize } = require('../models');
 const { adjustCoins, formatCoins, InsufficientFundsError } = require('./economy');
 const { localDateKey } = require('./scheduler');
-const { betting } = require('../config/settings');
+const { betting, channels } = require('../config/settings');
 const { getWordleNumber } = require('../utils/wordle');
 const { getNickname } = require('../utils/getNickname');
 const { fetchMessage } = require('../utils/messages');
@@ -190,6 +190,33 @@ async function announce(client, channelId, text) {
     catch (error) {
         console.error('Could not announce bet results:', error.message);
     }
+}
+
+/** Where a market's posts and results go: the bets channel if one is set, else where it was opened */
+function betsChannelFor(channelId) {
+    return channels.bets ?? channelId;
+}
+
+/**
+ * Log a bet (or market, or result) in the bets channel and confirm privately to whoever
+ * made it. In the bets channel itself, or with none configured, it's a normal public reply.
+ * @returns {Promise<import('discord.js').Message|null>} The public post
+ */
+async function postBetRecord(interaction, payload) {
+    const target = channels.bets;
+    if (target && target !== interaction.channelId) {
+        try {
+            const channel = await interaction.client.channels.fetch(target);
+            const message = await channel.send({ ...payload, allowedMentions: { parse: [] } });
+            await interaction.reply({ content: `🎲 Done! Logged in ${message.url}`, flags: MessageFlags.Ephemeral });
+            return message;
+        }
+        catch (error) {
+            console.error('Could not post to the bets channel, replying here instead:', error.message);
+        }
+    }
+    const response = await interaction.reply({ ...payload, withResponse: true });
+    return response.resource?.message ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -436,9 +463,17 @@ async function getOpenBets(userId) {
     return bets.map(bet => ({ bet, market: byId.get(bet.marketId) })).filter(x => x.market);
 }
 
-function listOpenMarkets() {
+/**
+ * Open markets for /bet list. Deth toot markets are secret (knowing about one could change
+ * whether someone toots), so they only show up for people who bet on them.
+ */
+async function listOpenMarkets(viewerId) {
+    const myBets = await Bet.findAll({ where: { userId: viewerId, resolved: false }, attributes: ['marketId'], raw: true });
     return BetMarket.findAll({
-        where: { status: { [Op.in]: ['open', 'locked'] } },
+        where: {
+            status: { [Op.in]: ['open', 'locked'] },
+            [Op.or]: [{ type: { [Op.ne]: 'dethtoot' } }, { id: myBets.map(b => b.marketId) }],
+        },
         order: [['closesAt', 'ASC']],
         limit: 15,
     });
@@ -453,6 +488,8 @@ module.exports = {
     placeBet,
     resolveMarket,
     announce,
+    betsChannelFor,
+    postBetRecord,
     endOfToday,
     openScoreMarket,
     settleScoreMarket,

@@ -17,6 +17,10 @@ module.exports = {
         gazette: null,
         // Hall of fame for heavily-reacted messages
         starboard: null,
+        // Where every bet, new market and payout gets logged. Bets can still be placed from
+        // any channel; the bettor gets a private confirmation with a link here.
+        // Null = post in whatever channel the bet was made (the old behaviour).
+        bets: '1565039865924685885',
     },
 
     roles: {
@@ -93,6 +97,21 @@ module.exports = {
     },
 
     trial: {
-        votingMinutes: 3,
+        votingMinutes: 15,
+    },
+
+    // What the chat bot remembers about users (services/userMemory.js)
+    memory: {
+        // Items expire this long after the user last mentioned them
+        maxAgeDays: 30,
+        // After the bot brings something up, it's labeled "already brought up" for this long
+        mentionCooldownDays: 7,
+        // At most one "you may bring this up" nudge per user in this window
+        nudgeCooldownHours: 12,
+        maxFacts: 10,
+        maxPreferences: 8,
+        maxInsideJokes: 5,
+        // Shorter messages skip fact extraction (mention tracking still runs)
+        minAnalysisLength: 20,
     },
 };

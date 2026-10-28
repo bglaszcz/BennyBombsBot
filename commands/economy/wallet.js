@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getBalance, getRichest, formatCoins } = require('../../services/economy');
 const { getOpenBets, optionLabel } = require('../../services/bets');
 const { economy } = require('../../config/settings');
@@ -17,11 +17,15 @@ module.exports = {
 
 	async execute(interaction) {
 		const target = interaction.options.getUser('user') || interaction.user;
-		const [balance, openBets, richest] = await Promise.all([
+		const [balance, allOpenBets, richest] = await Promise.all([
 			getBalance(target.id),
 			getOpenBets(target.id),
 			getRichest(5),
 		]);
+
+		// Deth toot bets are secret: never in the public embed, only shown privately to their owner
+		const openBets = allOpenBets.filter(({ market }) => market.type !== 'dethtoot');
+		const secretBets = allOpenBets.filter(({ market }) => market.type === 'dethtoot');
 
 		const atStake = openBets.reduce((sum, { bet }) => sum + bet.wager, 0);
 		const embed = new EmbedBuilder()
@@ -46,6 +50,15 @@ module.exports = {
 		}
 
 		embed.setFooter({ text: 'Earn by chatting, levelling up, and posting Wordle/MapTap scores' });
-		return interaction.reply({ embeds: [embed] });
+		await interaction.reply({ embeds: [embed] });
+
+		if (secretBets.length > 0 && target.id === interaction.user.id) {
+			await interaction.followUp({
+				content: '🤫 **Your secret deth toot bets**\n' + secretBets
+					.map(({ bet, market }) => `• ${formatCoins(bet.wager)} on **${optionLabel(market, bet.choice)}** — ${market.question}`)
+					.join('\n'),
+				flags: MessageFlags.Ephemeral,
+			});
+		}
 	},
 };

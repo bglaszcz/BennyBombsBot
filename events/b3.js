@@ -8,8 +8,6 @@ const MAX_CONTEXT_MESSAGES = 5; // Number of previous messages to include in con
 const CONVERSATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes - conversations expire after this
 const TYPING_INTERVAL = 5000; // 5 seconds - refresh typing indicator
 const CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes - periodic cleanup of expired conversations
-// Short messages ("lol", "ty") rarely contain anything worth remembering — skip the extra AI call
-const MIN_MEMORY_ANALYSIS_LENGTH = 20;
 
 // Store conversation history with better structure
 const conversations = new Map();
@@ -124,11 +122,10 @@ module.exports = {
         response = await generateText(formatFallbackPrompt(context, message, userNickname));
       }
 
-      // Extract facts, preferences, inside jokes and roast context in the background
-      if (userMessage.length >= MIN_MEMORY_ANALYSIS_LENGTH) {
-        userMemory.analyzeForMemories(userId, userNickname, userMessage, response)
-          .catch(err => console.error('Background memory analysis failed:', err));
-      }
+      // In the background: note which memories the reply brought up (so they aren't
+      // repeated) and learn new ones. Skips itself when there's nothing to do.
+      userMemory.analyzeForMemories(userId, userNickname, userMessage, response)
+        .catch(err => console.error('Background memory analysis failed:', err));
 
       conversation.addMessage('assistant', response, 'Assistant');
 
@@ -170,9 +167,9 @@ Style guide:
 - Be clever and witty, but not always at someone's expense
 - Read the room - match users' energy (chill if they're chill, spicy if they're spicy)
 - Reference users by their nickname when it makes sense
-- Use your memory of users to make conversations more personal and engaging
-- If inside jokes are listed, reference AT MOST ONE and only if it fits naturally - do NOT force it
-- NEVER repeat or re-reference the same inside joke across multiple messages
+- Treat what you remember about users as background. Only use it when it's relevant to what they're saying right now
+- At most one callback to a memory per reply, and never one labeled "already brought up"
+- Don't repeat a point, joke, or reference you already made earlier in this conversation
 - NEVER mention achievements, message counts, or how long you've known someone unless the user asks
 
 Current context:
