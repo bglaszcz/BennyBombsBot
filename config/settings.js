@@ -65,12 +65,18 @@ module.exports = {
 
     betting: {
         minWager: 5,
-        maxWager: 1000,
-        // Net winnings multiplier for a correct /gacbet category
-        gacMultiplier: 4,
-        // Fraction of fair odds paid on deth toot bets (below 1 = house edge)
-        dethTootPayoutRate: 0.9,
-        // Over/under lines use a player's last N games
+        maxWager: 500,
+        // Odds are priced from history, then scaled by these (below 1 = house edge).
+        // MapTap is lower because there's little history yet — revisit once there are ~1,000 games.
+        payoutRates: {
+            gac: 0.9,
+            wordle: 0.9,
+            maptap: 0.8,
+            dethtoot: 0.9,
+        },
+        // GAC odds come from the categories of the last N excuses
+        gacOddsSample: 100,
+        // Over/under lines are the median of a player's last N games
         lineSampleGames: 30,
         lineMinGames: 5,
         // Custom bets left unsettled this long after closing are refunded

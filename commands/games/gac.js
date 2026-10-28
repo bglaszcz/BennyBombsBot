@@ -2,7 +2,7 @@ const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('disc
 const { UniqueConstraintError } = require('sequelize');
 const { GACMessage } = require('../../models');
 const { generateText } = require('../../services/gemini');
-const { settleBets } = require('../../services/gacBets');
+const { settleBets, classifyExcuse } = require('../../services/gacBets');
 const { dayKey } = require('../../utils/dayKey');
 const { peekRiggedExcuse, consumeRiggedExcuse } = require('../../services/shop');
 const { getNickname } = require('../../utils/getNickname');
@@ -155,7 +155,10 @@ module.exports = {
         return interaction.editReply('Lucas just made his excuse a moment ago — scroll up! 🏃');
       }
       if (rigged) await consumeRiggedExcuse();
-      betResults = await settleBets(todayString, excuse);
+      // Always classified (not just when people bet) — the history prices future odds
+      const category = await classifyExcuse(excuse);
+      await GACMessage.update({ category }, { where: { date: todayString } });
+      betResults = await settleBets(todayString, category, rigged?.buyerId);
     }
 
     const mayFourthHeader = isMayFourth

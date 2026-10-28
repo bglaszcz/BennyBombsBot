@@ -38,10 +38,14 @@ module.exports = {
 		}
 
 		const totalBets = await Bet.count({ where: { marketId: market.id } });
+		const multiplier = market.options.find(o => o.value === category).multiplier;
+		// Category labels start with their emoji, which keeps the odds board short
+		const oddsBoard = market.options.map(o => `${o.label.split(' ')[0]} ${o.multiplier}:1`).join(' · ');
 
 		return interaction.reply(
-			`🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'bet'} ${formatCoins(wager)} that Lucas's excuse involves **${CATEGORIES[category]}**.\n` +
-			`*A win returns the stake plus ${betting.gacMultiplier}x. ${totalBets} bet${totalBets !== 1 ? 's' : ''} on the table — settled when someone runs /gac.*`,
+			`🎲 ${interaction.user} ${result.changed ? 'changed their bet to' : 'bet'} ${formatCoins(wager)} that Lucas's excuse involves **${CATEGORIES[category]}** (pays ${multiplier}:1).\n` +
+			`-# Today's odds: ${oddsBoard}\n` +
+			`-# ${totalBets} bet${totalBets !== 1 ? 's' : ''} on the table — settled when someone runs /gac • Balance: ${formatCoins(result.balance)}`,
 		);
 	},
 };

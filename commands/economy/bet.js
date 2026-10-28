@@ -154,11 +154,11 @@ module.exports = {
 		.setDescription('Bet Bomb Bucks on your friends')
 		.addSubcommand(sub => addPlayerAndWager(sub
 			.setName('wordle')
-			.setDescription('Over/under on someone\'s Wordle today (line set from their recent average)'),
+			.setDescription('Over/under on someone\'s Wordle today (line and odds set from their recent games)'),
 		[{ name: 'Under (fewer guesses)', value: 'under' }, { name: 'Over (more guesses or fail)', value: 'over' }]))
 		.addSubcommand(sub => addPlayerAndWager(sub
 			.setName('maptap')
-			.setDescription('Over/under on someone\'s MapTap score today (line set from their recent average)'),
+			.setDescription('Over/under on someone\'s MapTap score today (line and odds set from their recent games)'),
 		[{ name: 'Over', value: 'over' }, { name: 'Under', value: 'under' }]))
 		.addSubcommand(sub => addPlayerAndWager(sub
 			.setName('dethtoot')

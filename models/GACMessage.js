@@ -27,6 +27,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT, // Using TEXT for longer excuse content
       allowNull: false,
     },
+    // Betting category (services/gacBets CATEGORIES), classified when the excuse is posted
+    category: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

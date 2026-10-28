@@ -4,7 +4,8 @@
  * winnings, and voiding refunds everyone.
  *
  * Payout modes:
- * - fixed: each option carries a net multiplier (GAC categories, over/unders, deth toots)
+ * - fixed: each option carries a net multiplier priced from history (GAC categories,
+ *          over/unders, deth toots) — see oddsFor()
  * - pool:  winners split the losers' stakes pro rata (custom yes/no bets)
  *
  * Lock order is always market row → user rows, so bets and settlements can't deadlock.
@@ -34,6 +35,20 @@ function isOpen(market) {
 
 function optionLabel(market, value) {
     return market.options.find(o => o.value === value)?.label ?? value;
+}
+
+/**
+ * Net payout per coin for an outcome with probability p: fair odds scaled by
+ * the payout rate (below 1 = house edge), rounded to 0.1 and capped at 10:1.
+ */
+function oddsFor(p, payoutRate) {
+    const fair = (1 - p) / p;
+    return Math.min(10, Math.max(0.1, Math.round(fair * payoutRate * 10) / 10));
+}
+
+/** Probability from k hits in n tries, smoothed so small samples never say 0% or 100% */
+function smoothedProbability(k, n) {
+    return (k + 1) / (n + 2);
 }
 
 /** Auto markets are keyed so everyone's bets on the same event land in one row */
@@ -116,7 +131,7 @@ function computeNets(market, bets, outcome) {
     return { nets, refunded: false };
 }
 
-function summarize(market, bets, nets, outcome, refunded) {
+function summarize(market, bets, nets, outcome, refunded, refundNotes) {
     if (bets.length === 0) return null;
 
     if (outcome === null) {
@@ -125,6 +140,7 @@ function summarize(market, bets, nets, outcome, refunded) {
 
     const lines = bets.map(bet => {
         const net = nets.get(bet.id);
+        if (refundNotes.has(bet.userId)) return `↩️ <@${bet.userId}> refunded ${formatCoins(bet.wager)} — ${refundNotes.get(bet.userId)}`;
         if (refunded) return `↩️ <@${bet.userId}> refunded ${formatCoins(bet.wager)}`;
         return net >= 0
             ? `✅ <@${bet.userId}> +${formatCoins(net)}`
@@ -136,17 +152,21 @@ function summarize(market, bets, nets, outcome, refunded) {
 
 /**
  * Settle a market with an outcome, or void it (outcome null) to refund everyone.
+ * @param {Map<string, string>} [refundNotes] - userId -> reason; these bettors get their stake back
+ *   and are left out of the payout (e.g. whoever rigged the GAC excuse)
  * @returns {Promise<{ market, text: string|null } | null>} null if it was already settled
  */
-async function resolveMarket(marketId, outcome) {
+async function resolveMarket(marketId, outcome, refundNotes = new Map()) {
     return sequelize.transaction(async transaction => {
         const market = await BetMarket.findByPk(marketId, { transaction, lock: transaction.LOCK.UPDATE });
         if (!market || market.status === 'settled' || market.status === 'void') return null;
 
         const bets = await Bet.findAll({ where: { marketId, resolved: false }, order: [['wager', 'DESC']], transaction });
+        const counted = bets.filter(b => !refundNotes.has(b.userId));
         const { nets, refunded } = outcome === null
             ? { nets: new Map(bets.map(b => [b.id, 0])), refunded: false }
-            : computeNets(market, bets, outcome);
+            : computeNets(market, counted, outcome);
+        for (const bet of bets) if (!nets.has(bet.id)) nets.set(bet.id, 0);
 
         for (const bet of bets) {
             const net = nets.get(bet.id);
@@ -157,7 +177,7 @@ async function resolveMarket(marketId, outcome) {
         }
 
         await market.update({ status: outcome === null ? 'void' : 'settled', outcome }, { transaction });
-        return { market, text: summarize(market, bets, nets, outcome, refunded) };
+        return { market, text: summarize(market, bets, nets, outcome, refunded, refundNotes) };
     });
 }
 
@@ -189,13 +209,10 @@ const SCORE_MARKETS = {
             });
             return rows.map(r => r.score);
         },
-        // Integer scores 1-7, so a .5 line can't push
-        toLine: avg => Math.min(6.5, Math.max(1.5, Math.floor(avg) + 0.5)),
+        // Integer scores 1-7; keep the line inside the possible range
+        clampLine: line => Math.min(6.5, Math.max(1.5, line)),
         question: (name, puzzleKey, line) => `${name} on Wordle #${puzzleKey}: over/under ${line}`,
-        options: line => [
-            { value: 'under', label: `Under ${line} (sharp)`, multiplier: 1 },
-            { value: 'over', label: `Over ${line} (struggles)`, multiplier: 1 },
-        ],
+        labels: line => ({ under: `Under ${line} (sharp)`, over: `Over ${line} (struggles)` }),
     },
     maptap: {
         label: 'MapTap',
@@ -209,12 +226,9 @@ const SCORE_MARKETS = {
             });
             return rows.map(r => r.finalScore);
         },
-        toLine: avg => Math.round(avg) + 0.5,
+        clampLine: line => line,
         question: (name, puzzleKey, line) => `${name} on today's MapTap: over/under ${line}`,
-        options: line => [
-            { value: 'over', label: `Over ${line} (cartographer)`, multiplier: 1 },
-            { value: 'under', label: `Under ${line} (lost)`, multiplier: 1 },
-        ],
+        labels: line => ({ over: `Over ${line} (cartographer)`, under: `Under ${line} (lost)` }),
     },
 };
 
@@ -236,14 +250,25 @@ async function openScoreMarket(type, player, channelId) {
     if (scores.length < betting.lineMinGames) {
         return { error: `${name} needs at least ${betting.lineMinGames} ${config.label} games on record before I can set a line. 📏` };
     }
-    const line = config.toLine(scores.reduce((sum, s) => sum + s, 0) / scores.length);
+
+    // The median, not the mean: MapTap's occasional disaster round drags the mean below a
+    // typical game, which made "over" a near-free win. Each side is then priced from how
+    // often it would have hit across these same games.
+    const sorted = [...scores].sort((a, b) => a - b);
+    const line = config.clampLine(sorted[Math.floor(sorted.length / 2)] + 0.5);
+    const pUnder = smoothedProbability(scores.filter(s => s < line).length, scores.length);
+    const rate = betting.payoutRates[type];
+    const labels = config.labels(line);
 
     const market = await findOrCreateMarket(key, {
         type,
         question: config.question(name, puzzleKey, line),
         subjectUserId: player.id,
         line,
-        options: config.options(line),
+        options: [
+            { value: 'under', label: labels.under, multiplier: oddsFor(pUnder, rate) },
+            { value: 'over', label: labels.over, multiplier: oddsFor(1 - pUnder, rate) },
+        ],
         // Voided at midnight if they never post
         closesAt: endOfToday(),
         channelId,
@@ -278,10 +303,6 @@ async function dethTootProbability(userId) {
     return Math.min(0.95, Math.max(0.05, 1 - Math.exp(-dailyRate)));
 }
 
-function oddsMultiplier(fairNet) {
-    return Math.min(10, Math.max(0.1, Math.round(fairNet * betting.dethTootPayoutRate * 10) / 10));
-}
-
 /** The open 24h deth toot market for a player, opening one if needed */
 async function openDethTootMarket(player, channelId) {
     const existing = await BetMarket.findOne({
@@ -296,8 +317,8 @@ async function openDethTootMarket(player, channelId) {
         question: `Will ${getNickname(player.id, player.username)} deth toot in the next 24 hours?`,
         subjectUserId: player.id,
         options: [
-            { value: 'yes', label: 'Toots 💨', multiplier: oddsMultiplier((1 - p) / p) },
-            { value: 'no', label: 'Stays clean 🧘', multiplier: oddsMultiplier(p / (1 - p)) },
+            { value: 'yes', label: 'Toots 💨', multiplier: oddsFor(p, betting.payoutRates.dethtoot) },
+            { value: 'no', label: 'Stays clean 🧘', multiplier: oddsFor(1 - p, betting.payoutRates.dethtoot) },
         ],
         closesAt: new Date(Date.now() + DAY_MS),
         channelId,
@@ -426,6 +447,8 @@ function listOpenMarkets() {
 module.exports = {
     isOpen,
     optionLabel,
+    oddsFor,
+    smoothedProbability,
     findOrCreateMarket,
     placeBet,
     resolveMarket,
