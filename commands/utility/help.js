@@ -64,7 +64,7 @@ module.exports = {
 		const embed = new EmbedBuilder()
 			.setColor('#0099ff')
 			.setTitle('📖 BennyBombsBot Commands')
-			.setDescription('Use `/help command:<name>` for details. Right-click any message → **Apps** to quote, nominate, or put it on trial.');
+			.setDescription('Use `/help command:<name>` for details. Right-click any message → **Apps** to quote, nominate, or sue someone in small claims court.');
 
 		for (const [category, names] of [...byCategory.entries()].sort()) {
 			embed.addFields({ name: CATEGORY_LABELS[category] || category, value: names.sort().join(' ') });

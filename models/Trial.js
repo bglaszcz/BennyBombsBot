@@ -26,6 +26,26 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.TEXT,
             allowNull: false,
         },
+        // Small claims: what the plaintiff asked for, the fee they paid to file (held until
+        // the verdict) and what the court actually collected. 0 on trials from before money.
+        damages: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 0,
+        },
+        courtFee: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 0,
+        },
+        awarded: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
+        grievance: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
         // The bot's courtroom post with the voting buttons
         channelId: {
             type: DataTypes.STRING,
@@ -41,7 +61,7 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 'open',
         },
-        // guilty | innocent | mistrial
+        // guilty (liable) | innocent (not liable) | mistrial
         verdict: {
             type: DataTypes.STRING,
             allowNull: true,

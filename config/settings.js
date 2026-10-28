@@ -96,8 +96,16 @@ module.exports = {
         botNicknameHours: 24,
     },
 
+    // Small Claims Court (right-click a message → Apps → Sue in Small Claims)
     trial: {
         votingMinutes: 15,
+        minDamages: 10,
+        maxDamages: 250,
+        // Plaintiff pays this share of the claim up front; refunded if they win or it's a mistrial
+        courtFeeRate: 0.25,
+        minCourtFee: 5,
+        // If the plaintiff loses, this share of the fee goes to the defendant; the rest is jury duty pay
+        defendantShareOfFees: 0.5,
     },
 
     // What the chat bot remembers about users (services/userMemory.js)
