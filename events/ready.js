@@ -1,6 +1,12 @@
 const { Events } = require('discord.js');
 const userMemory = require('../services/userMemory');
-const { startWordleReminderScheduler } = require('../services/wordleReminderScheduler');
+const { scheduleDaily, scheduleRecurring, startScheduler } = require('../services/scheduler');
+const { wordleReminderJob } = require('../services/wordleReminderScheduler');
+const { gazetteJob } = require('../services/gazette');
+const { weeklyChampionsJob } = require('../services/weeklyChampions');
+const { marketSweepJob } = require('../services/bets');
+const { nicknameExpiryJob } = require('../services/shop');
+const { resumeTrials } = require('../services/trial');
 
 function sweepAllMemories() {
 	const userIds = userMemory.getAllUserIds();
@@ -24,7 +30,13 @@ module.exports = {
 		const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 		setInterval(sweepAllMemories, ONE_DAY_MS);
 
-		// Periodically check for opted-in users who haven't posted their Wordle by 9pm
-		startWordleReminderScheduler(client);
+		scheduleDaily(wordleReminderJob);
+		scheduleDaily(gazetteJob);
+		scheduleDaily(weeklyChampionsJob);
+		scheduleRecurring(marketSweepJob);
+		scheduleRecurring(nicknameExpiryJob);
+		startScheduler(client);
+
+		resumeTrials(client).catch(error => console.error('Failed to resume trials:', error));
 	},
 };

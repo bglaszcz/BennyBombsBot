@@ -1,50 +1,30 @@
+const path = require('node:path');
 const { SlashCommandBuilder } = require('discord.js');
+
+const IMAGE_DIR = path.join(__dirname, '..', '..', 'assets', 'images', 'FridayThen');
+const notFriday = today => `Dafuq? It's *${today}*, not Friday fam`;
+
+const DAY_DATA = {
+    Monday: { response: notFriday, image: 'Monday-FridayThen.png' },
+    Tuesday: { response: notFriday, image: 'Tuesday-FridayThen.png' },
+    Wednesday: { response: notFriday, image: 'Wednesday-FridayThen.png' },
+    Thursday: { response: notFriday, image: 'Thursday-FridayThen.png' },
+    Friday: { response: () => 'https://www.youtube.com/watch?v=1AnG04qnLqI' },
+    Saturday: { response: () => 'https://www.youtube.com/watch?v=lfGt8-xICOU' },
+    Sunday: { response: () => 'The Sunday scaries are upon us. 😱' },
+};
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName(`fridaythen`)
-        .setDescription(`It's Friday Thennnnn`),
-    execute(interaction) {
+        .setName('fridaythen')
+        .setDescription('It\'s Friday Thennnnn'),
+    async execute(interaction) {
         const today = new Date().toLocaleString('en-us', { weekday: 'long' });
+        const { response, image } = DAY_DATA[today];
 
-        const dayData = {
-            "Monday": {
-                response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./assets/images/FridayThen/Monday-FridayThen.png"
-            },
-            "Tuesday": {
-                response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./assets/images/FridayThen/Tuesday-FridayThen.png"
-            },
-            "Wednesday": {
-                response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./assets/images/FridayThen/Wednesday-FridayThen.png"
-            },
-            "Thursday": {
-                response: `Dafuq? It's *${today}*, not Friday fam`,
-                image: "./assets/images/FridayThen/Thursday-FridayThen.png"
-            },
-            "Friday": {
-                response: "https://www.youtube.com/watch?v=1AnG04qnLqI%27",
-                image: null
-            },
-            "Saturday": {
-                response: "https://www.youtube.com/watch?v=lfGt8-xICOU",
-                image: null
-            },
-            "Sunday": {
-                response: "The Sunday scaries are upon us.",
-                image: "https://health.clevelandclinic.org/sunday-scaries/"
-            }
-        };
-
-        const dayInfo = dayData[today];
-
-        if (dayInfo) {
-            interaction.reply(dayInfo.response);
-            if (dayInfo.image) {
-                interaction.channel.send({ files: [dayInfo.image] });
-            }
-        }
+        await interaction.reply({
+            content: response(today),
+            files: image ? [path.join(IMAGE_DIR, image)] : [],
+        });
     },
 };

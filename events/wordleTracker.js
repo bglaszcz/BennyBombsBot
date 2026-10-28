@@ -1,62 +1,40 @@
 const { Events } = require('discord.js');
-
-const WORDLE_CHANNEL_ID = '930279618437586974';
-
-// Regex to parse Wordle scores
-// Matches: "Wordle 1,682 4/6*" or "Wordle 1682 X/6"
-const WORDLE_REGEX = /Wordle\s+([\d,]+)\s+([X1-6])\/6(\*)?/i;
+const { WordleScore, User } = require('../models');
+const { channels, economy } = require('../config/settings');
+const { settleScoreMarket } = require('../services/bets');
+const { parseWordleShare } = require('../utils/wordle');
 
 module.exports = {
     name: Events.MessageCreate,
     async execute(message) {
-        // Only process messages in the Wordle channel
-        if (message.channel.id !== WORDLE_CHANNEL_ID) return;
-
-        // Ignore bot messages
+        if (message.channel.id !== channels.wordle) return;
         if (message.author.bot) return;
 
-        // Try to parse the Wordle score
-        const match = message.content.match(WORDLE_REGEX);
-        if (!match) return;
-
-        const wordleNumber = parseInt(match[1].replace(/,/g, ''), 10);
-        const scoreStr = match[2];
-        const hardMode = match[3] === '*';
-
-        // Convert score: X means failed (store as 7), otherwise 1-6
-        const score = scoreStr.toUpperCase() === 'X' ? 7 : parseInt(scoreStr, 10);
+        const parsed = parseWordleShare(message.content);
+        if (!parsed) return;
 
         try {
-            const WordleScore = message.client.models.WordleScore;
-
-            // Check if user already has a score for this Wordle
-            const existing = await WordleScore.findOne({
+            // Unique (userId, wordleNumber) index means a repost of the same puzzle is a no-op
+            const [, created] = await WordleScore.findOrCreate({
                 where: {
                     userId: message.author.id,
-                    wordleNumber: wordleNumber,
+                    wordleNumber: parsed.wordleNumber,
+                },
+                defaults: {
+                    username: message.author.username,
+                    score: parsed.score,
+                    hardMode: parsed.hardMode,
+                    messageId: message.id,
+                    postedAt: message.createdAt,
                 },
             });
 
-            if (existing) {
-                // User already submitted this Wordle - could react or ignore
-                return;
-            }
-
-            // Store the new score
-            await WordleScore.create({
-                userId: message.author.id,
-                username: message.author.username,
-                wordleNumber: wordleNumber,
-                score: score,
-                hardMode: hardMode,
-                messageId: message.id,
-                postedAt: message.createdAt,
-            });
-
-            // Optional: React to confirm the score was recorded
+            if (!created) return;
             await message.react('📊');
-
-        } catch (error) {
+            await User.increment('coins', { by: economy.scorePostBonus, where: { userId: message.author.id } });
+            await settleScoreMarket(message.client, 'wordle', message.author.id, String(parsed.wordleNumber), parsed.score);
+        }
+        catch (error) {
             console.error('Error storing Wordle score:', error);
         }
     },

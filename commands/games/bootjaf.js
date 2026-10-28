@@ -1,29 +1,25 @@
-const fetch = require('node-fetch');
-const { SlashCommandBuilder } = require('discord.js');
-const Sequelize = require('sequelize');
-const sequelize = require('../../db.js');
-const { GIPHYApiKey } = require('../../config.json');
-
-const BootJaf = require('../../models/BootJaf')(sequelize, Sequelize.DataTypes);
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { BootJaf } = require('../../models');
+const { randomGif } = require('../../utils/giphy');
 
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('bootjaf')
 		.setDescription('Count the times we boot jaf'),
     async execute(interaction) {
+        await interaction.deferReply();
 
         const bootJafCount = await BootJaf.findOne({
             order: [ [ 'createdAt', 'DESC' ] ],
         });
 
-        const bootJafCountDisplay = bootJafCount.usage_count + 1;
+        const bootJafCountDisplay = (bootJafCount?.usage_count ?? 0) + 1;
 
         const isDevilCount = bootJafCountDisplay === 666;
 
-        interaction.reply(isDevilCount ? `😈 ${bootJafCountDisplay} 😈` : `${bootJafCountDisplay}`);
-
         try {
             await BootJaf.create({
+                userId: interaction.user.id,
                 username: interaction.user.username,
                 usage_count: bootJafCountDisplay,
             });
@@ -32,17 +28,22 @@ module.exports = {
             console.log(error);
         }
 
+        const embed = new EmbedBuilder()
+            .setColor(isDevilCount ? 0x8B0000 : 0xFFFFFF)
+            .setTitle(isDevilCount ? `😈 ${bootJafCountDisplay} 😈` : `${bootJafCountDisplay}`);
+
         if (isDevilCount) {
-            interaction.channel.send('The number of the beast has been reached. Jaf has been booted straight to hell.');
+            embed.setDescription('The number of the beast has been reached. Jaf has been booted straight to hell.');
         }
 
-        const searchTerm = isDevilCount ? 'satan' : 'milk';
-        const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHYApiKey}&q=${searchTerm}&limit=50&rating=r`;
-        const response = await fetch(url);
-        const json = await response.json();
+        try {
+            const gif = await randomGif(isDevilCount ? 'satan' : 'milk');
+            if (gif) embed.setImage(gif.imageUrl);
+        }
+        catch (error) {
+            console.log(error);
+        }
 
-        const index = Math.floor(Math.random() * json.data.length);
-
-        interaction.channel.send(json.data[index].url);
+        await interaction.editReply({ embeds: [embed] });
     },
 };

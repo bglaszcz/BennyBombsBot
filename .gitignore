@@ -3,7 +3,7 @@ node_modules
 CLAUDE.md
 config.json
 config/googleCredentials.json
-userMemories.json
+userMemories*
 images/
 bootjaf/
 logs/

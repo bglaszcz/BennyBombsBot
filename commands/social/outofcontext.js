@@ -1,10 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { Sequelize } = require('sequelize');
-const sequelize = require('../../db.js');
-const OutOfContext = require('../../models/OutOfContext')(sequelize, Sequelize.DataTypes);
-
-// Discord message link regex
-const MESSAGE_LINK_REGEX = /https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
+const { OutOfContext, sequelize } = require('../../models');
+const { addQuote, selfDestruct } = require('../../services/outOfContext');
+const { parseMessageLink, fetchMessage, truncate } = require('../../utils/messages');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -13,7 +10,7 @@ module.exports = {
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('add')
-				.setDescription('Add a new out-of-context quote')
+				.setDescription('Add a quote (or right-click a message > Apps > Add to Out of Context)')
 				.addStringOption(option =>
 					option
 						.setName('message_link')
@@ -64,21 +61,16 @@ module.exports = {
 		const subcommand = interaction.options.getSubcommand();
 
 		if (subcommand === 'add') {
-			const messageLink = interaction.options.getString('message_link');
+			const link = parseMessageLink(interaction.options.getString('message_link'));
 
-			// Validate message link format
-			const match = messageLink.match(MESSAGE_LINK_REGEX);
-			if (!match) {
+			if (!link) {
 				return interaction.reply({
 					content: "That doesn't look like a valid Discord message link. Right-click a message and select 'Copy Message Link'. 🔗",
 					flags: MessageFlags.Ephemeral,
 				});
 			}
 
-			const [, guildId, channelId, messageId] = match;
-
-			// Check if link is from this server
-			if (guildId !== interaction.guildId) {
+			if (link.guildId !== interaction.guildId) {
 				return interaction.reply({
 					content: "That message is from a different server. Keep the quotes local! 🏠",
 					flags: MessageFlags.Ephemeral,
@@ -88,81 +80,18 @@ module.exports = {
 			await interaction.deferReply();
 
 			try {
-				// Fetch the channel and message
-				const channel = await interaction.client.channels.fetch(channelId);
-				if (!channel) {
-					return interaction.editReply({
-						content: "Couldn't find that channel. Maybe it was deleted? 👻",
-					});
-				}
-
-				const message = await channel.messages.fetch(messageId);
+				const message = await fetchMessage(interaction.client, link.channelId, link.messageId);
 				if (!message) {
-					return interaction.editReply({
-						content: "Couldn't find that message. It may have been deleted. 💨",
-					});
+					return interaction.editReply("Couldn't find that message. It may have been deleted. 💨");
 				}
 
-				// Don't let people quote themselves
-				if (message.author.id === interaction.user.id) {
-					return interaction.editReply({
-						content: "You can't quote yourself, that's just sad. 😬",
-					});
-				}
+				const result = await addQuote(message, interaction.user);
+				if (result.error) return interaction.editReply(result.error);
 
-				// Don't quote bots
-				if (message.author.bot) {
-					return interaction.editReply({
-						content: "Quoting bots? Really? Touch grass. 🌿",
-					});
-				}
-
-				// Get message content
-				let quote = message.content;
-				if (!quote && message.attachments.size > 0) {
-					quote = '[Attachment]';
-				}
-				if (!quote && message.embeds.length > 0) {
-					quote = '[Embed]';
-				}
-				if (!quote) {
-					quote = '[No text content]';
-				}
-
-				// Truncate if too long
-				if (quote.length > 500) {
-					quote = quote.substring(0, 497) + '...';
-				}
-
-				const newQuote = await OutOfContext.create({
-					quote: quote,
-					quotedUserId: message.author.id,
-					quotedUsername: message.author.username,
-					addedByUserId: interaction.user.id,
-					addedByUsername: interaction.user.username,
-					guildId: interaction.guildId,
-				});
-
-				const embed = new EmbedBuilder()
-					.setColor('#FF6B6B')
-					.setTitle('📝 Quote Added!')
-					.setDescription(`"${quote}"`)
-					.addFields(
-						{ name: 'Said by', value: `<@${message.author.id}>`, inline: true },
-						{ name: 'Added by', value: `${interaction.user}`, inline: true },
-						{ name: 'Quote ID', value: `#${newQuote.id}`, inline: true },
-						{ name: 'Message Link', value: `[Jump to message](${messageLink})`, inline: true }
-					)
-					.setFooter({ text: 'No context allowed 🤫 • This message will self-destruct in 5 minutes' })
-					.setTimestamp();
-
-				const reply = await interaction.editReply({ embeds: [embed], fetchReply: true });
-
-				// Delete after 5 minutes
-				setTimeout(() => {
-					reply.delete().catch(() => {});
-				}, 5 * 60 * 1000);
-			} catch (error) {
+				const reply = await interaction.editReply({ embeds: [result.embed] });
+				selfDestruct(reply);
+			}
+			catch (error) {
 				console.error('Error adding quote:', error);
 				await interaction.editReply({
 					content: 'Something broke while saving that quote. Probably your fault. 🙄',
@@ -239,7 +168,7 @@ module.exports = {
 				});
 
 				const quoteList = quotes
-					.map((q, i) => `**#${q.id}** "${q.quote}"`)
+					.map(q => `**#${q.id}** "${truncate(q.quote, 300)}"`)
 					.join('\n\n');
 
 				const embed = new EmbedBuilder()
@@ -265,11 +194,11 @@ module.exports = {
 					where: { guildId: interaction.guildId },
 					attributes: [
 						'quotedUserId',
-						'quotedUsername',
 						[sequelize.fn('COUNT', sequelize.col('quotedUserId')), 'quoteCount'],
 					],
-					group: ['quotedUserId', 'quotedUsername'],
-					order: [[sequelize.literal('quoteCount'), 'DESC']],
+					group: ['quotedUserId'],
+					// Quoted: Postgres folds unquoted identifiers to lowercase
+					order: [[sequelize.literal('"quoteCount"'), 'DESC']],
 					limit: 10,
 				});
 
@@ -283,7 +212,7 @@ module.exports = {
 				const leaderboardText = leaderboard
 					.map((entry, index) => {
 						const medal = medals[index] || `**${index + 1}.**`;
-						const count = entry.dataValues.quoteCount;
+						const count = Number(entry.dataValues.quoteCount);
 						return `${medal} <@${entry.quotedUserId}> - **${count}** quote${count !== 1 ? 's' : ''}`;
 					})
 					.join('\n');

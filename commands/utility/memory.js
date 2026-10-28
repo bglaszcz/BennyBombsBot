@@ -54,7 +54,7 @@ module.exports = {
     .addSubcommand(sub =>
       sub
         .setName('reload')
-        .setDescription('(Admin) Reload memories from disk — use after manual edits while bot was stopped')
+        .setDescription('(Admin) Force a reload from disk (hand edits are normally picked up within seconds)')
     ),
 
   async execute(interaction) {
@@ -225,8 +225,13 @@ module.exports = {
         return;
       }
 
-      userMemory.reloadMemories();
-      await interaction.reply({ content: 'Memory reloaded from disk.', flags: MessageFlags.Ephemeral });
+      const ok = userMemory.reloadMemories();
+      await interaction.reply({
+        content: ok
+          ? 'Memory reloaded from disk.'
+          : 'userMemories.json is not valid JSON right now, so nothing was reloaded. Fix the file and it will be picked up automatically.',
+        flags: MessageFlags.Ephemeral,
+      });
     }
   },
 };

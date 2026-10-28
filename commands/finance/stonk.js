@@ -2,79 +2,73 @@ const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance();
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-// Market hours configuration (24-hour format, EST/EDT)
-const PRE_MARKET_END_HOUR = 8;
-const PRE_MARKET_END_MINUTE = 30;
-const AFTER_HOURS_START = 14; // 2 PM EST/EDT (market closes at 4 PM, this might be 16)
+const usd = value => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const percent = value => `${(value * 100).toFixed(2)}%`;
+const count = value => (value ?? 0).toLocaleString('en-US');
+
+/**
+ * Pick the most relevant price for the current trading session.
+ * Yahoo reports marketState as PRE / PREPRE / REGULAR / POST / POSTPOST / CLOSED.
+ */
+function getSessionQuote(price) {
+    const state = price.marketState;
+
+    if ((state === 'PRE' || state === 'PREPRE') && price.preMarketPrice != null) {
+        return { label: 'Pre-Market', color: '#FFAE42', value: price.preMarketPrice, change: price.preMarketChangePercent };
+    }
+    if ((state === 'POST' || state === 'POSTPOST') && price.postMarketPrice != null) {
+        return { label: 'After Hours', color: '#FF5349', value: price.postMarketPrice, change: price.postMarketChangePercent };
+    }
+    return {
+        label: state === 'REGULAR' ? null : 'Market Closed',
+        color: '#0000FF',
+        value: price.regularMarketPrice,
+        change: price.regularMarketChangePercent,
+    };
+}
 
 module.exports = {
-	data: new SlashCommandBuilder()
-        .setName(`stonk`)
-        .setDescription(`Stonk information`)
+    data: new SlashCommandBuilder()
+        .setName('stonk')
+        .setDescription('Stonk information')
         .addStringOption(option => option
-                                    .setName('ticker')
-                                    .setDescription('Enter the ticker name')
-                                    .setRequired(true)),
+            .setName('ticker')
+            .setDescription('Enter the ticker name')
+            .setRequired(true)),
     async execute(interaction) {
+        const ticker = interaction.options.getString('ticker').trim().toUpperCase();
 
-        const date_ob = new Date().getHours();
-        const minutes = new Date().getMinutes();
+        await interaction.deferReply();
 
-        const ticker = interaction.options.getString('ticker');
-        const tickerUrl = `https://finance.yahoo.com/quote/${ticker}`;
-
-        const result = await yahooFinance.quoteSummary(ticker);
-        const company = result.price.shortName;
-
-        const volume = result.price.regularMarketVolume.toLocaleString("en-US");
-        const volume_avg = result.summaryDetail.averageVolume.toLocaleString("en-US");
-
-        // Pre-market pricing (before 8:30 AM)
-        if (date_ob <= PRE_MARKET_END_HOUR && minutes < PRE_MARKET_END_MINUTE && company) {
-            const exampleEmbed = new EmbedBuilder()
-                .setColor("#FFAE42")
-                .setURL(tickerUrl)
-                .setTitle(company)
-                .addFields(
-                    { name: "Price (Pre-Market)", value: result.price.preMarketPrice.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), inline: true },
-                    { name: "Change (Pre-Market)", value: (result.price.preMarketChangePercent * 100).toFixed(2) + "%", inline: true },
-                    { name: '\u200B', value: '\u200B', inline: true },
-                    { name: '24 Hour Volume', value: volume, inline: true },
-                    { name: 'Average Volume', value: volume_avg, inline: true },
-                );
-            interaction.reply({ embeds: [exampleEmbed] });
+        let result;
+        try {
+            result = await yahooFinance.quoteSummary(ticker);
         }
-        // After-hours pricing (after market close)
-        else if (date_ob > AFTER_HOURS_START && company) {
-            const exampleEmbed = new EmbedBuilder()
-                .setColor("#FF5349")
-                .setURL(tickerUrl)
-                .setTitle(company)
-                .addFields(
-                    { name: "Price (After Hours)", value: result.price.postMarketPrice.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), inline: true },
-                    { name: "Change (After Hours)", value: (result.price.postMarketChangePercent * 100).toFixed(2) + "%", inline: true },
-                    { name: '\u200B', value: '\u200B', inline: true },
-                    { name: '24 Hour Volume', value: volume, inline: true },
-                    { name: 'Average Volume', value: volume_avg, inline: true },
-                );
-                interaction.reply({ embeds: [exampleEmbed] });
+        catch (error) {
+            console.error(`Stonk lookup failed for ${ticker}:`, error.message);
+            return interaction.editReply(`No stonk with the ticker ${ticker}. 📉`);
         }
-        else if (company) {
-            const exampleEmbed = new EmbedBuilder()
-                .setColor('#0000FF')
-                .setURL(tickerUrl)
-                .setTitle(company)
-                .addFields(
-                    { name: "Price", value: result.price.regularMarketPrice.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), inline: true },
-                    { name: "Change", value: (result.price.regularMarketChangePercent * 100).toFixed(2) + "%", inline: true },
-                    { name: '\u200B', value: '\u200B', inline: true },
-                    { name: '24 Hour Volume', value: volume, inline: true },
-                    { name: 'Average Volume', value: volume_avg, inline: true },
-                );
-                interaction.reply({ embeds: [exampleEmbed] });
+
+        const { price, summaryDetail } = result;
+        if (!price?.shortName || price.regularMarketPrice == null) {
+            return interaction.editReply(`No stonk with the ticker ${ticker}. 📉`);
         }
-        else {
-            interaction.reply(`No stonk with the ticker ${ticker}.`);
-            }
+
+        const quote = getSessionQuote(price);
+        const suffix = quote.label ? ` (${quote.label})` : '';
+
+        const embed = new EmbedBuilder()
+            .setColor(quote.color)
+            .setURL(`https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}`)
+            .setTitle(`${price.shortName} (${ticker})`)
+            .addFields(
+                { name: `Price${suffix}`, value: usd(quote.value), inline: true },
+                { name: `Change${suffix}`, value: quote.change != null ? percent(quote.change) : 'N/A', inline: true },
+                { name: '​', value: '​', inline: true },
+                { name: '24 Hour Volume', value: count(price.regularMarketVolume), inline: true },
+                { name: 'Average Volume', value: count(summaryDetail?.averageVolume), inline: true },
+            );
+
+        return interaction.editReply({ embeds: [embed] });
     },
 };

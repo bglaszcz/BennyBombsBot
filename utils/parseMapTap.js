@@ -9,17 +9,24 @@ const ROUND_REGEX = /(\d{1,3})\s*\p{Extended_Pictographic}/gu;
 
 /**
  * @param {string} content Message content to parse
- * @param {number} fallbackYear Year to assume for the puzzle date (the share text has no year)
+ * @param {Date} postedAt When the share was posted — the share text has no year,
+ *   so the puzzle is assumed to be the closest matching date on or before this
  * @returns {{ puzzleDate: string, roundScores: number[], finalScore: number } | null}
  */
-function parseMapTapShare(content, fallbackYear) {
+function parseMapTapShare(content, postedAt) {
     const headerMatch = content.match(HEADER_REGEX);
     const finalMatch = content.match(FINAL_SCORE_REGEX);
     if (!headerMatch || !finalMatch) return null;
 
     const [, monthName, dayStr] = headerMatch;
-    const parsedDate = new Date(`${monthName} ${dayStr}, ${fallbackYear}`);
+    const parsedDate = new Date(`${monthName} ${dayStr}, ${postedAt.getFullYear()}`);
     if (isNaN(parsedDate.getTime())) return null;
+
+    // "December 31" shared on January 1 belongs to the previous year
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    if (parsedDate - postedAt > ONE_WEEK_MS) {
+        parsedDate.setFullYear(parsedDate.getFullYear() - 1);
+    }
 
     const roundScores = [...content.matchAll(ROUND_REGEX)].map(m => parseInt(m[1], 10));
     const finalScore = parseInt(finalMatch[1], 10);

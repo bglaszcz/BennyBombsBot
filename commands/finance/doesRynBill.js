@@ -1,12 +1,30 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { Sequelize, Op } = require('sequelize');
-const sequelize = require('../../db.js');
-const DoesRynBill = require('../../models/DoesRynBill')(sequelize, Sequelize.DataTypes);
+const { DoesRynBill, sequelize } = require('../../models');
+
+const DENIAL_DELETE_MS = 10 * 60 * 1000;
+
+/** The bill everyone is trying to submit; isNew means nobody has attempted it yet */
+async function getCurrentBill() {
+    const latest = await DoesRynBill.findOne({
+        attributes: [
+            'bill_number',
+            [sequelize.fn('MAX', sequelize.cast(sequelize.col('billed'), 'integer')), 'billedYN'],
+        ],
+        group: ['bill_number'],
+        order: [['bill_number', 'DESC']],
+        raw: true,
+    });
+
+    if (!latest) return { billNumber: 1, isNew: true };
+    // Once someone lands a bill, the next attempt starts a fresh bill number
+    if (Number(latest.billedYN) === 1) return { billNumber: latest.bill_number + 1, isNew: true };
+    return { billNumber: latest.bill_number, isNew: false };
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName(`doesrynbill`)
-        .setDescription(`doesrynbill!`)
+        .setName('doesrynbill')
+        .setDescription('doesrynbill!')
         .addIntegerOption(option => option
             .setName('guess')
             .setDescription('What number are you guessing 1-100?')
@@ -15,123 +33,36 @@ module.exports = {
             .setRequired(true)),
     async execute(interaction) {
         const guess = interaction.options.getInteger('guess');
-        const billHours = Math.round((Math.random() * 10) * 10) / 10;
+        const billHours = Math.round(Math.random() * 100) / 10;
         const rando = Math.floor(Math.random() * 100) + 1;
+        const billed = guess === rando;
+        const { username } = interaction.user;
 
-        try {
-            const bills = await DoesRynBill.findOne({
-                attributes: [
-                    `bill_number`,
-                    [sequelize.fn('MAX', sequelize.cast(sequelize.col('billed'), 'integer')), 'billedYN'],
-                ],
-                group: [`bill_number`],
-                order: [['bill_number', 'DESC']],
-            });
+        const { billNumber, isNew } = await getCurrentBill();
 
-            const billedYN = bills.getDataValue('billedYN');
-            const bill_number = bills.getDataValue('bill_number');
+        // A brand-new bill has no previous attempts; an in-progress one may
+        const attempter = isNew ? null : await DoesRynBill.findOne({
+            where: { username, billed: false, bill_number: billNumber },
+        });
 
-            let billed;
-            let newBillNum;
-            let currBillNum;
-            let newHours;
-            let newAttempts;
-            let attempter;
+        const attempts = (attempter ? Number(attempter.attempts) : 0) + 1;
+        const hours = Math.round(((attempter ? Number(attempter.hours) : 0) + billHours) * 10) / 10;
 
-            if (billedYN === 1) {
-                billed = 1;
-                newBillNum = bill_number + 1;
-                attempter = null;
-            } else {
-                billed = 0;
-                currBillNum = bill_number;
-                attempter = await DoesRynBill.findOne({
-                    attributes: ['id', 'username', 'attempts', 'hours', 'bill_number', 'billed'],
-                    where: {
-                        [Op.and]: [{ username: interaction.user.username }, { billed: false }, {bill_number: currBillNum} ],
-                    },
-                });
-            }
-
-            if (attempter === null) {
-                newHours = billHours;
-                newAttempts = 1;
-            } else {
-                newHours = Number(attempter.hours) + billHours;
-                newAttempts = Number(attempter.attempts) + 1;
-            }
-
-            if (billed === 0) {
-                if (attempter != null) {
-                    if (guess === rando) {
-                        await DoesRynBill.upsert({
-                            id: attempter.id,
-                            attempts: newAttempts,
-                            hours: newHours,
-                            billed: true,
-                        });
-                        return interaction.reply(`ryn did a bill! ${interaction.user.username} submitted ${newAttempts} bills for ${newHours} on his behalf.`);
-                    } else {
-                        await DoesRynBill.upsert({
-                            id: attempter.id,
-                            attempts: newAttempts,
-                            hours: newHours,
-                        });
-                        return interaction.reply(`ryn submitted a bill for ${billHours} hours and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him. (${rando})`).then(msg => {
-                            setTimeout(() => msg.delete(), 600000)
-                          })
-                          .catch(/*Your Error handling if the Message isn't returned, sent, etc.*/);
-                    }
-                } else if (attempter === null) {
-                    if (guess === rando) {
-                        await DoesRynBill.create({
-                            username: interaction.user.username,
-                            attempts: newAttempts,
-                            hours: newHours,
-                            bill_number: currBillNum,
-                            billed: true,
-                        });
-                        return interaction.reply(`ryn did a bill! ${interaction.user.username} submitted ${newAttempts} bills for ${newHours} on his behalf.`);
-                    } else {
-                        await DoesRynBill.create({
-                            username: interaction.user.username,
-                            attempts: newAttempts,
-                            hours: newHours,
-                            bill_number: currBillNum,
-                            billed: false,
-                        });
-                        return interaction.reply(`ryn submitted a bill for ${billHours} hours and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him. (${rando})`).then(msg => {
-                            setTimeout(() => msg.delete(), 600000)
-                          })
-                          .catch(/*Your Error handling if the Message isn't returned, sent, etc.*/);
-                    }
-                }
-            } else if (billed === 1) {
-                if (guess === rando) {
-                    await DoesRynBill.create({
-                        username: interaction.user.username,
-                        attempts: newAttempts,
-                        hours: newHours,
-                        bill_number: newBillNum,
-                        billed: true,
-                    });
-                    return interaction.reply(`ryn did a bill! ${interaction.user.username} submitted ${newAttempts} bills for ${newHours} on his behalf.`);
-                } else {
-                    await DoesRynBill.create({
-                        username: interaction.user.username,
-                        attempts: newAttempts,
-                        hours: newHours,
-                        bill_number: newBillNum,
-                        billed: false,
-                    });
-                    return interaction.reply(`ryn submitted a bill for ${billHours} hours and was denied. ${interaction.user.username} has tried to submit ${newAttempts} bills for him. (${rando})`).then(msg => {
-                        setTimeout(() => msg.delete(), 600000)
-                      })
-                      .catch(/*Your Error handling if the Message isn't returned, sent, etc.*/);
-                }
-            }
-        } catch (error) {
-            console.error(error);
+        if (attempter) {
+            await attempter.update({ attempts, hours, billed });
         }
+        else {
+            await DoesRynBill.create({ username, attempts, hours, bill_number: billNumber, billed });
+        }
+
+        if (billed) {
+            return interaction.reply(`ryn did a bill! ${username} submitted ${attempts} bills for ${hours} hours on his behalf. 🧾✅`);
+        }
+
+        const response = await interaction.reply({
+            content: `ryn submitted a bill for ${billHours} hours and was denied. ${username} has tried to submit ${attempts} bills for him. (${rando})`,
+            withResponse: true,
+        });
+        setTimeout(() => response.resource.message.delete().catch(() => {}), DENIAL_DELETE_MS);
     },
 };

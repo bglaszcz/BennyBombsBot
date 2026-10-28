@@ -1,7 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { Sequelize } = require('sequelize');
-const sequelize = require('../../db.js');
-const LevelUpMessage = require('../../models/LevelUpMessage')(sequelize, Sequelize.DataTypes);
+const { LevelUpMessage } = require('../../models');
 const { getNickname } = require('../../utils/getNickname');
 
 module.exports = {

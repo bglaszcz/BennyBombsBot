@@ -1,4 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { PERIOD_CHOICES, PERIOD_LABELS, getPeriodStart } = require('../../utils/periods');
+const { getNickname } = require('../../utils/getNickname');
 const { Op, fn, col, literal } = require('sequelize');
 
 module.exports = {
@@ -9,12 +11,7 @@ module.exports = {
             option.setName('period')
                 .setDescription('Filter the leaderboard to a specific time period')
                 .setRequired(false)
-                .addChoices(
-                    { name: 'All Time', value: 'all' },
-                    { name: 'This Year', value: 'year' },
-                    { name: 'This Month', value: 'month' },
-                    { name: 'This Week', value: 'week' },
-                ))
+                .addChoices(...PERIOD_CHOICES))
         .addStringOption(option =>
             option.setName('sort')
                 .setDescription('Stat to rank players by')
@@ -30,38 +27,24 @@ module.exports = {
         const sortBy = interaction.options.getString('sort') || 'avg';
 
         const WordleScore = interaction.client.models.WordleScore;
-        const sequelize = interaction.client.sequelize;
 
-        // Build date filter based on period
         const now = new Date();
-        let dateFilter = {};
-        let periodStart = null;
-
-        if (period === 'year') {
-            periodStart = new Date(now.getFullYear(), 0, 1);
-            dateFilter = { postedAt: { [Op.gte]: periodStart } };
-        } else if (period === 'month') {
-            periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            dateFilter = { postedAt: { [Op.gte]: periodStart } };
-        } else if (period === 'week') {
-            periodStart = new Date(now);
-            periodStart.setDate(now.getDate() - now.getDay());
-            periodStart.setHours(0, 0, 0, 0);
-            dateFilter = { postedAt: { [Op.gte]: periodStart } };
-        }
+        let periodStart = getPeriodStart(period, now);
+        const dateFilter = periodStart ? { postedAt: { [Op.gte]: periodStart } } : {};
 
         try {
             // Get aggregated stats for all users
             const stats = await WordleScore.findAll({
                 attributes: [
                     'userId',
-                    'username',
+                    // One row per user even if they renamed; any of their usernames will do
+                    [fn('MAX', col('username')), 'username'],
                     [fn('COUNT', col('id')), 'totalGames'],
                     [fn('SUM', literal('CASE WHEN score <= 6 THEN 1 ELSE 0 END')), 'wins'],
                     [fn('AVG', literal('CASE WHEN score <= 6 THEN score ELSE 7 END')), 'avgScore'],
                 ],
                 where: dateFilter,
-                group: ['userId', 'username'],
+                group: ['userId'],
                 raw: true,
             });
 
@@ -131,16 +114,10 @@ module.exports = {
             const leaderboardText = top.map((entry, index) => {
                 const rank = index < 3 ? medals[index] : `\`${(index + 1).toString().padStart(2)}\``;
                 const avgDisplay = entry.avgScore || 'N/A';
-                return `${rank} **${entry.username}** - Avg: ${avgDisplay} | ${entry.wins}/${entry.totalGames} wins (${entry.winRate}%)`;
+                return `${rank} **${getNickname(entry.userId, entry.username)}** - Avg: ${avgDisplay} | ${entry.wins}/${entry.totalGames} wins (${entry.winRate}%)`;
             }).join('\n');
 
             // Period and sort labels
-            const periodLabels = {
-                all: 'All Time',
-                year: 'This Year',
-                month: 'This Month',
-                week: 'This Week',
-            };
             const sortLabels = {
                 avg: 'Average Score',
                 games: 'Games Played',
@@ -151,7 +128,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor(0x538D4E) // Wordle green
                 .setTitle('🏆 Wordle Leaderboard')
-                .setDescription(`**${periodLabels[period]}** • Sorted by: ${sortLabels[sortBy]}\n*Minimum ${minGames} games required (30% of ${daysInPeriod} days)*`)
+                .setDescription(`**${PERIOD_LABELS[period]}** • Sorted by: ${sortLabels[sortBy]}\n*Minimum ${minGames} games required (30% of ${daysInPeriod} days)*`)
                 .addFields({ name: 'Rankings', value: leaderboardText || 'No data available' })
                 .setFooter({ text: `${leaderboard.length} qualified players • ${stats.length} total players` })
                 .setTimestamp();

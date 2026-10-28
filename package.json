@@ -8,27 +8,18 @@
     "deploy": "node deploy-commands.js --guild",
     "deploy:global": "node deploy-commands.js --global",
     "deploy:delete": "node deploy-commands.js --delete",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "db:sync": "node scripts/db-sync.js",
+    "lint": "eslint ."
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@discordjs/rest": "^2.4.0",
-    "@google-ai/generativelanguage": "^2.7.0",
-    "@google/generative-ai": "^0.21.0",
-    "@xhissy/google-stock-scraper": "^1.0.6",
-    "axios": "^1.7.0",
-    "cheerio": "*",
-    "coinmarketcap-api": "^3.1.1",
-    "dayjs": "^1.11.5",
-    "discord.js": "^14.11.0",
-    "dotenv": "^8.6.0",
-    "google-auth-library": "^9.14.2",
-    "node-fetch": "^2.6.12",
+    "@google/genai": "^2.31.0",
+    "discord.js": "^14.26.0",
     "pg": "^8.8.0",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.28.0",
-    "sqlite3": "^6.0.1",
     "yahoo-finance2": "^3.11.2"
   },
   "devDependencies": {

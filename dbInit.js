@@ -1,4 +1,3 @@
-const { InteractionCollector } = require('discord.js');
 const Sequelize = require('sequelize');
 const sequelize = require('./db.js');
 

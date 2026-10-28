@@ -1,25 +1,26 @@
-const { DataTypes } = require('sequelize');
 const { Events } = require('discord.js');
+const { User, LevelUpMessage } = require('../models');
+const settings = require('../config/settings');
+const { applyXp } = require('../utils/xp');
 
-const sequelize = require('../db.js');
-const User = require('../models/User.js')(sequelize, DataTypes);
-const LevelUpMessage = require('../models/LevelUpMessage.js')(sequelize, DataTypes);
+const { min: MIN_XP, max: MAX_XP, cooldownMs: COOLDOWN_MS } = settings.xp;
+const { chatMin: MIN_COINS, chatMax: MAX_COINS, levelUpBonus: LEVEL_UP_COINS } = settings.economy;
 
-// XP reward configuration
-const MIN_XP = 15; // Minimum XP per message
-const MAX_XP = 25; // Maximum XP per message
-const COOLDOWN_MS = 60 * 1000; // 1 minute cooldown between XP gains
-
-// Guild configuration (should match config.json guildId)
-const TARGET_GUILD_ID = '771095355077033994';
+// userId -> last time XP was awarded. Checked before touching the DB so
+// messages inside the cooldown cost nothing. The DB's lastMessageTime still
+// guards the first message after a restart.
+const lastAwarded = new Map();
 
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
-    if (message.author.bot || message.guild.id !== TARGET_GUILD_ID) return;
+    if (message.author.bot || message.guild?.id !== settings.guildId) return;
+
+    const currentTime = Date.now();
+    if (currentTime - (lastAwarded.get(message.author.id) || 0) < COOLDOWN_MS) return;
 
     try {
-      const [user, created] = await User.findOrCreate({
+      const [user] = await User.findOrCreate({
         where: { userId: message.author.id },
         defaults: {
           userId: message.author.id,
@@ -30,24 +31,20 @@ module.exports = {
         },
       });
 
-      const currentTime = Date.now();
-
-      // Check cooldown before awarding XP
       if (user.lastMessageTime && currentTime - user.lastMessageTime < COOLDOWN_MS) {
+        lastAwarded.set(message.author.id, Number(user.lastMessageTime));
         return;
       }
+      lastAwarded.set(message.author.id, currentTime);
 
       // Award random XP between MIN_XP and MAX_XP
       const earnedXP = Math.floor(Math.random() * (MAX_XP - MIN_XP + 1)) + MIN_XP;
-      user.xp += earnedXP;
       user.lastMessageTime = currentTime;
+      let earnedCoins = Math.floor(Math.random() * (MAX_COINS - MIN_COINS + 1)) + MIN_COINS;
 
-      // Level up threshold calculation: 100 * level^2
-      const levelThreshold = 100 * user.level * user.level;
-      if (user.xp >= levelThreshold) {
-        user.level += 1;
-        user.xp = 0;
-
+      // Overflow past the threshold carries into the next level
+      if (applyXp(user, earnedXP) > 0) {
+        earnedCoins += LEVEL_UP_COINS;
         // Store the message that triggered the level-up
         await LevelUpMessage.create({
           userId: message.author.id,
@@ -83,11 +80,14 @@ module.exports = {
           `🛠️ Lucas might be Mr. Fix-It, but ${message.author.username} just finessed their way to level ${user.level} with a little help from the squad. Blessings all around! 🔧✨`,
         ];
         const randomMessage = levelUpMessages[Math.floor(Math.random() * levelUpMessages.length)];
-        message.channel.send(randomMessage);
+        await message.channel.send(`${randomMessage}
+-# +${LEVEL_UP_COINS} ${settings.economy.emoji} level-up bonus`);
+        console.log(`${message.author.tag} reached level ${user.level}.`);
       }
 
       await user.save();
-      console.log(`${message.author.tag} earned ${earnedXP} XP.`);
+      // Atomic increment so this can't overwrite a bet or purchase happening at the same moment
+      await user.increment('coins', { by: earnedCoins });
     } catch (error) {
       console.error('Error processing message:', error);
     }

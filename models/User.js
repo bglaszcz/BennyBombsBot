@@ -1,3 +1,5 @@
+const { economy } = require('../config/settings');
+
 module.exports = (sequelize, DataTypes) => {
   return sequelize.define('User', {
     userId: {
@@ -18,6 +20,12 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,
+    },
+    // Bomb Bucks balance (separate from XP)
+    coins: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: economy.startingBalance,
     },
     lastMessageTime: {
       type: DataTypes.BIGINT,

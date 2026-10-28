@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
-const WORDLE_CHANNEL_ID = '930279618437586974';
+const { channels, schedule } = require('../../config/settings');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -25,7 +25,7 @@ module.exports = {
                     username: interaction.user.username,
                 });
                 await interaction.reply({
-                    content: `✅ You're opted in! If you haven't posted your Wordle result by 9pm, I'll ping you in <#${WORDLE_CHANNEL_ID}>.`,
+                    content: `✅ You're opted in! If you haven't posted your Wordle result by ${schedule.wordleReminderHour % 12 || 12}${schedule.wordleReminderHour < 12 ? 'am' : 'pm'}, I'll ping you in <#${channels.wordle}>.`,
                     flags: MessageFlags.Ephemeral,
                 });
             } else {

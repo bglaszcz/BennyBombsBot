@@ -10,6 +10,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       unique: true, // Ensures only one GAC message per day
     },
+    // Nullable: rows from before userId was tracked may lack it
+    userId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     username: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -21,6 +26,11 @@ module.exports = (sequelize, DataTypes) => {
     excuse: {
       type: DataTypes.TEXT, // Using TEXT for longer excuse content
       allowNull: false,
+    },
+    // Betting category (services/gacBets CATEGORIES), classified when the excuse is posted
+    category: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     createdAt: {
       type: DataTypes.DATE,
