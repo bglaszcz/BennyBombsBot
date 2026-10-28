@@ -40,7 +40,8 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 'fixed',
         },
-        // open | locked (no new bets) | settled | void
+        // open | locked (no new bets) | pending (result called, dispute window running)
+        // | disputed (waiting on an admin) | settled | void
         status: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -52,6 +53,22 @@ module.exports = (sequelize, DataTypes) => {
         },
         closesAt: {
             type: DataTypes.DATE,
+            allowNull: true,
+        },
+        // Custom markets: when the answer should be known. The creator is reminded to settle from then on.
+        settleAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+        },
+        // Last settle reminder sent (they repeat daily until settled)
+        remindedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+        },
+        // Custom markets: the called result while it's up for dispute
+        // { outcome, by, endsAt, agreed: [userIds], channelId?, messageId?, disputedBy?, disputedAt? }
+        proposal: {
+            type: DataTypes.JSON,
             allowNull: true,
         },
         creatorId: {

@@ -83,8 +83,14 @@ module.exports = {
         // Over/under lines are the median of a player's last N games
         lineSampleGames: 30,
         lineMinGames: 5,
-        // Custom bets left unsettled this long after closing are refunded
+        // Custom bets: once someone calls the result, others in the bet have this long to dispute it
+        disputeWindowHours: 12,
+        // Custom bets: the creator is pinged to settle when the settle time hits, then again this often
+        settleReminderEveryHours: 24,
+        // ...and if it's still unsettled this long after the settle time, everyone is refunded
         customSettleGraceHours: 7 * 24,
+        // How far ahead a custom bet's settle time can be
+        maxSettleDays: 60,
     },
 
     shop: {

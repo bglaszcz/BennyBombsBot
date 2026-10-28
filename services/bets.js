@@ -15,7 +15,7 @@ const { Op, UniqueConstraintError } = require('sequelize');
 const { Bet, BetMarket, WordleScore, MapTapScore, DethTootLog, sequelize } = require('../models');
 const { adjustCoins, formatCoins, InsufficientFundsError } = require('./economy');
 const { localDateKey } = require('./scheduler');
-const { betting, channels } = require('../config/settings');
+const { betting, channels, guildId } = require('../config/settings');
 const { getWordleNumber } = require('../utils/wordle');
 const { getNickname } = require('../utils/getNickname');
 const { fetchMessage } = require('../utils/messages');
@@ -207,7 +207,8 @@ async function postBetRecord(interaction, payload) {
     if (target && target !== interaction.channelId) {
         try {
             const channel = await interaction.client.channels.fetch(target);
-            const message = await channel.send({ ...payload, allowedMentions: { parse: [] } });
+            // Quiet by default; a payload can opt in to pinging specific people
+            const message = await channel.send({ allowedMentions: { parse: [] }, ...payload });
             await interaction.reply({ content: `🎲 Done! Logged in ${message.url}`, flags: MessageFlags.Ephemeral });
             return message;
         }
@@ -364,18 +365,197 @@ async function settleDethTootMarket(client, userId) {
 
 // ---------------------------------------------------------------------------
 // Custom yes/no markets
+//
+// Settling works by proposal: anyone involved (the creator or a bettor) calls the
+// result, which pays out after a dispute window unless someone involved disputes it.
+// If everyone involved agrees, it pays out right away. A disputed bet waits for an
+// admin; admins' calls are always final and immediate.
+//
+// Status: open → locked (betting closed) → pending (result called) → settled
+//                                                   ↘ disputed → settled by an admin
 // ---------------------------------------------------------------------------
 
-function createCustomMarket(creator, question, hours, channelId) {
+const ACTIVE_STATUSES = ['open', 'locked', 'pending', 'disputed'];
+
+/**
+ * @param {Date} closesAt - When betting stops
+ * @param {Date|null} settleAt - When the answer should be known; the creator gets pinged then
+ */
+function createCustomMarket(creator, question, closesAt, settleAt, channelId) {
     return BetMarket.create({
         type: 'custom',
         question,
         options: [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }],
         payoutMode: 'pool',
-        closesAt: new Date(Date.now() + hours * HOUR_MS),
+        closesAt,
+        settleAt,
         creatorId: creator.id,
         channelId,
     });
+}
+
+/** When a custom market should be settled: its settle time, or when betting closes */
+function settleDueAt(market) {
+    return market.settleAt ?? market.closesAt;
+}
+
+function outcomeLabel(market, outcome) {
+    return outcome === 'void' ? 'Call it off (refund everyone)' : optionLabel(market, outcome);
+}
+
+/** The creator plus everyone who bet — the people who get a say in the result */
+async function involvedIds(market, transaction) {
+    const bettors = await Bet.findAll({ where: { marketId: market.id }, attributes: ['userId'], raw: true, transaction });
+    return [...new Set([market.creatorId, ...bettors.map(b => b.userId)].filter(Boolean))];
+}
+
+/** "Yes / No / Call it off / Not yet" buttons for the settle reminder */
+function settleButtons(marketId) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`bet-settle:${marketId}:yes`).setLabel('Yes').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`bet-settle:${marketId}:no`).setLabel('No').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`bet-settle:${marketId}:void`).setLabel('Call it off (refund)').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`bet-settle:${marketId}:snooze`).setLabel('Not yet — ask tomorrow').setEmoji('😴').setStyle(ButtonStyle.Secondary),
+    );
+}
+
+/** Ping the creator to call the result, with one-tap buttons */
+async function sendSettleReminder(client, market) {
+    if (!market.channelId) return;
+    const link = market.messageId ? ` ([the bet](https://discord.com/channels/${guildId}/${market.channelId}/${market.messageId}))` : '';
+    const refundAt = Math.floor((settleDueAt(market).getTime() + betting.customSettleGraceHours * HOUR_MS) / 1000);
+    const nag = market.remindedAt ? 'Still waiting on you,' : 'Time to settle up,';
+    try {
+        const channel = await client.channels.fetch(market.channelId);
+        await channel.send({
+            content: `⏰ ${nag} <@${market.creatorId}>! How did it go?\n> ${market.question}${link}\n` +
+                `-# Anyone in the bet can make the call, and anyone else in it has ${betting.disputeWindowHours}h to dispute. ` +
+                `If nobody calls it, everyone's refunded <t:${refundAt}:R>.`,
+            components: [settleButtons(market.id)],
+            allowedMentions: { users: [market.creatorId] },
+        });
+    }
+    catch (error) {
+        console.error('Could not send settle reminder:', error.message);
+    }
+}
+
+/** The public "X says the answer is Y" post with Agree / Dispute buttons */
+function proposalPayload(market, involved) {
+    const { outcome, by, endsAt, agreed } = market.proposal;
+    const others = involved.filter(id => id !== by);
+    const endsUnix = Math.floor(new Date(endsAt).getTime() / 1000);
+    return {
+        content: `⚖️ <@${by}> says the answer is **${outcomeLabel(market, outcome)}**\n> ${market.question}\n` +
+            `Pays out <t:${endsUnix}:R> unless someone disputes. ✅ ${agreed.length}/${involved.length} agree — if everyone does, it pays out now.` +
+            (others.length ? `\n-# ${others.map(id => `<@${id}>`).join(' ')} — you're in this bet, so you can agree or dispute.` : ''),
+        components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`bet-agree:${market.id}`).setLabel('Agree').setEmoji('✅').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`bet-dispute:${market.id}`).setLabel('Dispute').setEmoji('⚠️').setStyle(ButtonStyle.Danger),
+        )],
+        allowedMentions: { users: others },
+    };
+}
+
+/**
+ * Someone involved calls the result. Locks betting and starts the dispute window.
+ * @returns {Promise<{ error: string } | { market, involved: string[], final: boolean }>}
+ *   final = they're the only one involved, so there's nobody to dispute it
+ */
+async function proposeOutcome(marketId, userId, outcome) {
+    return sequelize.transaction(async transaction => {
+        const market = await BetMarket.findByPk(marketId, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!market) return { error: 'No market with that number. 🤔' };
+        if (market.type !== 'custom') return { error: 'That market settles itself. Admins can only void it.' };
+        if (market.status === 'pending') return { error: 'Someone already called it — agree or dispute their call instead.' };
+        if (market.status === 'disputed') return { error: 'That one\'s disputed, so an admin has to make the call. 🧑‍⚖️' };
+        if (!['open', 'locked'].includes(market.status)) return { error: 'That one\'s already been settled.' };
+
+        const involved = await involvedIds(market, transaction);
+        if (!involved.includes(userId)) return { error: 'Only the creator and people who bet on it can call the result. 🙅' };
+
+        const endsAt = new Date(Date.now() + betting.disputeWindowHours * HOUR_MS);
+        await market.update({
+            status: 'pending',
+            proposal: { outcome, by: userId, endsAt: endsAt.toISOString(), agreed: [userId] },
+        }, { transaction });
+        return { market, involved, final: involved.length === 1 };
+    });
+}
+
+/** Remember where the proposal post is, so its buttons can be cleared later */
+async function setProposalMessage(market, message) {
+    await market.update({ proposal: { ...market.proposal, channelId: message.channelId, messageId: message.id } });
+}
+
+/**
+ * Agree with or dispute the current call.
+ * @returns {Promise<{ error: string, stale?: boolean } | { market, involved: string[], final?: boolean, disputed?: boolean }>}
+ */
+async function respondToProposal(marketId, userId, action) {
+    return sequelize.transaction(async transaction => {
+        const market = await BetMarket.findByPk(marketId, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!market || market.status !== 'pending') return { error: 'That call isn\'t up for debate anymore.', stale: true };
+
+        const involved = await involvedIds(market, transaction);
+        if (!involved.includes(userId)) return { error: 'Only the creator and people who bet on it get a say. 🙅' };
+
+        const proposal = market.proposal;
+        if (action === 'dispute') {
+            if (userId === proposal.by) return { error: 'You can\'t dispute your own call. Ask an admin if you got it wrong.' };
+            await market.update({
+                status: 'disputed',
+                proposal: { ...proposal, disputedBy: userId, disputedAt: new Date().toISOString() },
+            }, { transaction });
+            return { market, involved, disputed: true };
+        }
+
+        if (proposal.agreed.includes(userId)) return { error: 'You already agreed. 👍' };
+        const agreed = [...proposal.agreed, userId];
+        await market.update({ proposal: { ...proposal, agreed } }, { transaction });
+        return { market, involved, final: involved.every(id => agreed.includes(id)) };
+    });
+}
+
+/** Strip the Agree/Dispute buttons off a proposal post once it's decided */
+async function closeProposalPost(client, market) {
+    const proposal = market.proposal;
+    if (!proposal?.messageId) return;
+    const message = await fetchMessage(client, proposal.channelId, proposal.messageId);
+    if (message?.components.length) {
+        await message.edit({ content: `${message.content}\n🔒 Final.`, components: [], allowedMentions: { parse: [] } }).catch(() => null);
+    }
+}
+
+/**
+ * Pay out (or refund, outcome 'void') right now. Used for admin rulings, unanimous
+ * agreement, and dispute windows that ran out.
+ * @returns {Promise<string|null>} Results text, or null if it was already settled
+ */
+async function settleMarketNow(client, market, outcome) {
+    const result = await resolveMarket(market.id, outcome === 'void' ? null : outcome);
+    if (!result) return null;
+    await refreshMarketPost(client, result.market);
+    await closeProposalPost(client, result.market);
+    return result.text ?? `🎲 **${market.question}** settled — nobody had bet on it.`;
+}
+
+/** One-line status for the bet post and /bet list */
+function customStatusLine(market) {
+    const closesUnix = Math.floor(market.closesAt.getTime() / 1000);
+    const settleUnix = Math.floor(settleDueAt(market).getTime() / 1000);
+    const settleNote = market.settleAt && market.settleAt > market.closesAt ? ` • settles <t:${settleUnix}:f>` : '';
+    switch (market.status) {
+        case 'open': return `Betting closes <t:${closesUnix}:R>${settleNote}`;
+        case 'locked': return `Betting closed — result due <t:${settleUnix}:R>`;
+        case 'pending': {
+            const endsUnix = Math.floor(new Date(market.proposal.endsAt).getTime() / 1000);
+            return `<@${market.proposal.by}> called it **${outcomeLabel(market, market.proposal.outcome)}** — pays out <t:${endsUnix}:R> unless disputed`;
+        }
+        case 'disputed': return `⚠️ Disputed by <@${market.proposal.disputedBy}> — an admin has to rule with \`/bet settle market:${market.id}\``;
+        case 'settled': return `Settled: **${optionLabel(market, market.outcome)}**`;
+        default: return 'Called off — everyone was refunded';
+    }
 }
 
 /** Embed + Yes/No buttons for a custom market's post */
@@ -387,18 +567,10 @@ async function customMarketPayload(market) {
         return { option, total, count: onSide.length };
     });
 
-    const closesUnix = Math.floor(market.closesAt.getTime() / 1000);
-    const statusLine = {
-        open: `Betting closes <t:${closesUnix}:R>`,
-        locked: `Betting closed — waiting for <@${market.creatorId}> to settle it`,
-        settled: `Settled: **${optionLabel(market, market.outcome)}**`,
-        void: 'Called off — everyone was refunded',
-    }[market.status];
-
     const embed = new EmbedBuilder()
-        .setColor(market.status === 'open' ? 0x5865F2 : 0x747F8D)
+        .setColor({ open: 0x5865F2, pending: 0xF1C40F, disputed: 0xE67E22 }[market.status] ?? 0x747F8D)
         .setTitle(`🎲 ${market.question}`)
-        .setDescription(`${statusLine}\nWinners split the losing side's pot.`)
+        .setDescription(`${customStatusLine(market)}\nWinners split the losing side's pot.`)
         .addFields(pools.map(({ option, total, count }) => ({
             name: option.label,
             value: `${formatCoins(total)} from ${count} bettor${count !== 1 ? 's' : ''}`,
@@ -420,31 +592,62 @@ async function customMarketPayload(market) {
 async function refreshMarketPost(client, market) {
     if (!market.messageId) return;
     const message = await fetchMessage(client, market.channelId, market.messageId);
-    if (message) await message.edit(await customMarketPayload(market)).catch(() => {});
+    if (message) await message.edit(await customMarketPayload(market)).catch(() => null);
 }
 
 // ---------------------------------------------------------------------------
 // Expiry sweep (runs every scheduler tick)
 // ---------------------------------------------------------------------------
 
+/**
+ * Custom markets: pay out calls whose dispute window ran out, lock when betting closes,
+ * ping the creator from the settle time on, and refund everyone after the grace period.
+ */
+async function sweepCustomMarket(client, market, now) {
+    if (market.status === 'pending') {
+        if (new Date(market.proposal.endsAt) <= now) {
+            await announce(client, market.channelId, await settleMarketNow(client, market, market.proposal.outcome));
+        }
+        return;
+    }
+
+    // A dispute restarts the clock so admins get the full grace period to rule
+    const due = settleDueAt(market);
+    const disputedAt = market.proposal?.disputedAt ? new Date(market.proposal.disputedAt) : null;
+    const graceStart = disputedAt && disputedAt > due ? disputedAt : due;
+    if (now - graceStart > betting.customSettleGraceHours * HOUR_MS) {
+        await announce(client, market.channelId, await settleMarketNow(client, market, 'void'));
+        return;
+    }
+    if (market.status === 'disputed') return;
+
+    if (market.status === 'open' && market.closesAt <= now) {
+        await market.update({ status: 'locked' });
+        await refreshMarketPost(client, market);
+    }
+    if (due <= now && (!market.remindedAt || now - market.remindedAt >= betting.settleReminderEveryHours * HOUR_MS)) {
+        await sendSettleReminder(client, market);
+        await market.update({ remindedAt: now });
+    }
+}
+
 async function sweepMarkets(client) {
     const now = new Date();
-    const expired = await BetMarket.findAll({
-        where: { status: { [Op.in]: ['open', 'locked'] }, closesAt: { [Op.lte]: now } },
+    const due = await BetMarket.findAll({
+        where: {
+            status: { [Op.in]: ACTIVE_STATUSES },
+            [Op.or]: [
+                { closesAt: { [Op.lte]: now } },
+                { settleAt: { [Op.lte]: now } },
+                // A call made before betting closed still needs its window checked
+                { status: 'pending' },
+            ],
+        },
     });
 
-    for (const market of expired) {
+    for (const market of due) {
         if (market.type === 'custom') {
-            const graceOver = now - market.closesAt > betting.customSettleGraceHours * HOUR_MS;
-            if (graceOver) {
-                const result = await resolveMarket(market.id, null);
-                await refreshMarketPost(client, result?.market ?? market);
-                await announce(client, market.channelId, result?.text);
-            }
-            else if (market.status === 'open') {
-                await market.update({ status: 'locked' });
-                await refreshMarketPost(client, market);
-            }
+            await sweepCustomMarket(client, market, now);
             continue;
         }
 
@@ -471,7 +674,7 @@ async function listOpenMarkets(viewerId) {
     const myBets = await Bet.findAll({ where: { userId: viewerId, resolved: false }, attributes: ['marketId'], raw: true });
     return BetMarket.findAll({
         where: {
-            status: { [Op.in]: ['open', 'locked'] },
+            status: { [Op.in]: ACTIVE_STATUSES },
             [Op.or]: [{ type: { [Op.ne]: 'dethtoot' } }, { id: myBets.map(b => b.marketId) }],
         },
         order: [['closesAt', 'ASC']],
@@ -496,6 +699,13 @@ module.exports = {
     openDethTootMarket,
     settleDethTootMarket,
     createCustomMarket,
+    settleDueAt,
+    customStatusLine,
+    proposalPayload,
+    proposeOutcome,
+    setProposalMessage,
+    respondToProposal,
+    settleMarketNow,
     customMarketPayload,
     refreshMarketPost,
     getOpenBets,
